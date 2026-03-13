@@ -26,23 +26,13 @@ We kept running into the same annoying workflow — see something confusing on s
 
 ---
 
-## Walkthrough Video
-
-Watch the full setup and demo walkthrough:
-
-[![ScreenSense Walkthrough](https://img.shields.io/badge/▶%20Watch%20Walkthrough-YouTube-FF0000?style=for-the-badge&logo=youtube&logoColor=white)](https://www.youtube.com/watch?v=eUtELbN1SbI)
-
-> Covers: installation, Chrome setup, API key configuration, and live demos of voice queries, text follow-ups, and conversation memory.
-
----
-
 ## Setup Guide (Step by Step)
 
 ### Step 1: Get the code
 
 ```bash
-git clone https://github.com/anirxdh/global-hack-screensense.git
-cd global-hack-screensense
+git clone https://github.com/anirxdh/global-engineering-hack.git
+cd global-engineering-hack
 npm install
 npm run build
 ```
@@ -195,7 +185,7 @@ That's it. No accounts, no sign-ups, just your free API key and you're good to g
 ## Project Structure
 
 ```
-global-hack-screensense/
+global-engineering-hack/
 ├── src/
 │   ├── background/
 │   │   ├── service-worker.ts      # Main orchestrator & pipeline
