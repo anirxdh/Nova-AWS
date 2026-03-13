@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Built%20at-Global%20Hack%202026-818cf8?style=for-the-badge" alt="Global Hack 2026" />
+  <img src="https://img.shields.io/badge/Built%20at-Global%20Engineering%20Hackathon%202026-00b4d8?style=for-the-badge" alt="Global Engineering Hackathon 2026" />
   <img src="https://img.shields.io/badge/Platform-Chrome%20Extension-4285F4?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Chrome Extension" />
   <img src="https://img.shields.io/badge/Manifest-V3-10B981?style=for-the-badge" alt="Manifest V3" />
   <img src="https://img.shields.io/badge/TypeScript-100%25-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" />
@@ -261,13 +261,13 @@ ScreenSense works entirely on **free tiers** — no credit card required.
 
 ## Built At
 
-**Global Hack 2026** — ScreenSense was conceived, designed, and built from scratch during the hackathon.
+**[Global Engineering Hackathon 2026](https://global-engineering-hackathon.devpost.com/)** — ScreenSense was conceived, designed, and built from scratch during the hackathon.
 
 ---
 
 ## Team
 
-Built with caffeine and conviction by our team at Global Hack 2026.
+Built with caffeine and conviction by our team at the Global Engineering Hackathon 2026.
 
 ---
 
