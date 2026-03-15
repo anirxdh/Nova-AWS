@@ -144,6 +144,35 @@ function broadcastStateChange(state: ExtensionState): void {
   });
 }
 
+// ─── Debug Logger ───
+
+const DEBUG_LOG: string[] = [];
+
+function dbg(msg: string): void {
+  const ts = new Date().toISOString().slice(11, 23); // HH:MM:SS.mmm
+  const line = `[${ts}] ${msg}`;
+  DEBUG_LOG.push(line);
+  console.log(`[ScreenSense][DBG] ${line}`);
+}
+
+function dbgTimer(label: string): () => string {
+  const start = performance.now();
+  return () => {
+    const ms = Math.round(performance.now() - start);
+    const result = `${label} (${ms}ms)`;
+    dbg(result);
+    return result;
+  };
+}
+
+/** Get the full debug log as a string (for copying from console) */
+function getDebugLog(): string {
+  return DEBUG_LOG.join('\n');
+}
+
+// Expose globally for console access
+(globalThis as any).__screensenseDebugLog = getDebugLog;
+
 // ─── Pipeline ───
 
 /** Send done state with completed steps summary */
@@ -153,6 +182,8 @@ function sendAgentDone(tabId: number, actionHistory: ActionHistoryEntry[], label
     sendToTab(tabId, { action: 'bubble-done-summary', steps: stepSummaries });
   }
   sendToTab(tabId, { action: 'bubble-state', state: 'done', label });
+  dbg(`=== AGENT DONE === steps=${actionHistory.length} label=${label || 'complete'}`);
+  dbg(`Full log:\n${getDebugLog()}`);
 }
 
 async function waitForDomStable(tabId: number, timeout = 2000, settleMs = 300): Promise<boolean> {
@@ -188,6 +219,11 @@ async function runAgentLoop(
   agentLoopTabId = tabId;
 
   try {
+  // Clear debug log for new run
+  DEBUG_LOG.length = 0;
+  dbg(`=== AGENT LOOP START === command="${originalCommand}" actions=${initialActions.length}`);
+  dbg(`Initial actions: ${JSON.stringify(initialActions.map(a => a.description))}`);
+
   // Show the task in the bubble
   sendToTab(tabId, { action: 'bubble-set-task', task: originalCommand });
 
@@ -203,6 +239,7 @@ async function runAgentLoop(
 
   while (iteration < MAX_AGENT_ITERATIONS) {
     iteration++;
+    dbg(`--- Iteration ${iteration}/${MAX_AGENT_ITERATIONS} --- batch=${currentActions.length} actions`);
 
     // Check for user cancellation at start of each outer iteration
     if (agentLoopCancelled) {
@@ -212,7 +249,10 @@ async function runAgentLoop(
     }
 
     // Inner loop: execute each action in the current batch
-    for (const step of currentActions) {
+    for (let stepIdx = 0; stepIdx < currentActions.length; stepIdx++) {
+      const step = currentActions[stepIdx];
+      dbg(`Action [${stepIdx + 1}/${currentActions.length}]: ${step.action} — "${step.description}" selector=${step.selector || 'none'}`);
+
       // Show intent: what we're about to do
       sendToTab(tabId, {
         action: 'bubble-step',
@@ -222,6 +262,7 @@ async function runAgentLoop(
       });
 
       // Execute the action in the content script
+      const endActionTimer = dbgTimer(`Execute: ${step.action} "${step.description}"`);
       let result: { ok: boolean; summary: string; error?: string };
       let navigationOccurred = false;
       try {
@@ -256,9 +297,11 @@ async function runAgentLoop(
 
       if (navigationOccurred) break;
 
-      console.log(`[ScreenSense][loop] iter=${iteration} action="${step.description}" result:`, result);
+      endActionTimer();
+      dbg(`Result: ok=${result.ok} summary="${result.summary}" error=${result.error || 'none'}`);
 
       if (!result.ok) {
+        dbg(`ACTION FAILED: ${result.error}`);
         // Action failed — stop the loop
         sendToTab(tabId, {
           action: 'pipeline-error',
@@ -281,12 +324,14 @@ async function runAgentLoop(
       // Special handling for navigate actions — the page will reload, destroying the content script.
       // We need to wait for the new page to fully load before continuing.
       if (step.action === 'navigate') {
+        dbg(`NAVIGATE: waiting for page to load... url=${step.url}`);
         sendToTab(tabId, {
           action: 'bubble-state',
           state: 'understanding',
           label: 'Navigating... waiting for page to load',
         });
         // Wait for navigation to start and complete
+        const endNavTimer = dbgTimer('Navigate: page load');
         await new Promise(r => setTimeout(r, 3000));
         // Poll for content script availability (new page loaded + content script injected)
         let pageReady = false;
@@ -306,14 +351,24 @@ async function runAgentLoop(
           }
         }
         if (!pageReady) {
+          dbg('NAVIGATE FAILED: page never loaded');
           sendToTab(tabId, {
             action: 'pipeline-error',
             error: 'Page failed to load after navigation',
           });
           return;
         }
-        // Re-send the task banner on the new page
+        endNavTimer();
+        // Re-establish bubble on new page
         sendToTab(tabId, { action: 'bubble-set-task', task: originalCommand });
+        sendToTab(tabId, { action: 'bubble-state', state: 'executing' });
+        sendToTab(tabId, {
+          action: 'bubble-step',
+          stepName: `Navigated to ${step.url}`,
+          stepIndex: actionHistory.length,
+          totalSteps: 0,
+        });
+        dbg(`Navigate complete, bubble re-established on new page`);
         // Break inner loop to re-observe from the new page
         break;
       }
@@ -330,10 +385,13 @@ async function runAgentLoop(
     }
 
     // After executing all actions in the current batch — re-observe the page
-    // Wait for the page to fully settle after last action (navigation, AJAX, animations)
+    dbg('Re-observing page...');
+    const endSettleTimer = dbgTimer('DOM settle wait');
     await waitForDomStable(tabId, 2500, 300);
+    endSettleTimer();
 
     // Re-capture screenshot of the updated page
+    const endScreenTimer = dbgTimer('Screenshot capture');
     let newScreenshot: string;
     try {
       newScreenshot = await captureScreenshot(tabId);
@@ -344,7 +402,10 @@ async function runAgentLoop(
       return;
     }
 
+    endScreenTimer();
+
     // Re-scrape DOM from the updated page
+    const endDomTimer = dbgTimer('DOM scrape');
     let domSnapshot: object = {};
     try {
       const domResponse = await chrome.tabs.sendMessage(tabId, { action: 'scrape-dom' });
@@ -355,6 +416,13 @@ async function runAgentLoop(
       console.warn('[ScreenSense][loop] Could not scrape DOM for re-observation, using empty object');
     }
 
+    endDomTimer();
+    const domKeys = domSnapshot ? Object.keys(domSnapshot) : [];
+    const domButtonCount = (domSnapshot as any)?.buttons?.length || 0;
+    const domInputCount = (domSnapshot as any)?.inputs?.length || 0;
+    const domLinkCount = (domSnapshot as any)?.links?.length || 0;
+    dbg(`DOM snapshot: keys=[${domKeys.join(',')}] buttons=${domButtonCount} inputs=${domInputCount} links=${domLinkCount}`);
+
     // Show re-evaluation progress in the bubble
     sendToTab(tabId, {
       action: 'bubble-state',
@@ -363,6 +431,7 @@ async function runAgentLoop(
     });
 
     // Ask Nova what to do next based on the updated page
+    const endNovaTimer = dbgTimer('Nova /task/continue call');
     let continueResult: TaskResponse;
     try {
       continueResult = await sendTaskContinue(originalCommand, actionHistory, newScreenshot, domSnapshot);
@@ -379,7 +448,11 @@ async function runAgentLoop(
       return;
     }
 
-    console.log(`[ScreenSense][loop] iter=${iteration} Nova response type:`, continueResult.type);
+    endNovaTimer();
+    dbg(`Nova response: type=${continueResult.type} reasoning="${continueResult.reasoning || 'none'}" actions=${continueResult.actions?.length || 0}`);
+    if (continueResult.actions) {
+      dbg(`Next actions: ${JSON.stringify(continueResult.actions.map(a => a.description))}`);
+    }
 
     // Send reasoning to bubble if present
     if (continueResult.reasoning) {
@@ -438,13 +511,15 @@ async function runPipeline(tabId: number, audioBase64: string, mimeType: string)
     return;
   }
   pipelineRunning = true;
-  console.log('[ScreenSense][SW] runPipeline started — tabId:', tabId, 'audioLen:', audioBase64.length, 'mime:', mimeType);
+  DEBUG_LOG.length = 0;
+  dbg(`=== PIPELINE START === tabId=${tabId} audioLen=${audioBase64.length} mime=${mimeType}`);
   try {
     // Capture screenshot (overlay hidden during capture)
+    const endScreenshot = dbgTimer('Pipeline: screenshot');
     let screenshot: string;
     try {
       screenshot = await captureScreenshot(tabId);
-      console.log('[ScreenSense][SW] Screenshot captured, length:', screenshot.length);
+      endScreenshot();
     } catch {
       sendToTab(tabId, { action: 'pipeline-error', error: 'Could not capture screen' });
       currentState = 'idle';
@@ -456,18 +531,18 @@ async function runPipeline(tabId: number, audioBase64: string, mimeType: string)
     // Stage 1: Transcribe audio
     sendToTab(tabId, { action: 'bubble-state', state: 'transcribing' });
 
+    const endTranscribe = dbgTimer('Pipeline: transcription');
     let transcript: string;
     try {
       try {
-        console.log('[ScreenSense][SW] Calling transcribeAudioStreaming...');
         transcript = await transcribeAudioStreaming(audioBase64, mimeType);
-        console.log('[ScreenSense][SW] Streaming transcription succeeded:', transcript);
+        dbg(`Transcript (streaming): "${transcript}"`);
       } catch (streamErr) {
-        console.warn('[ScreenSense][SW] Streaming transcription failed, falling back to batch:', streamErr);
-        console.log('[ScreenSense][SW] Calling transcribeAudio (batch fallback)...');
+        dbg(`Streaming STT failed, falling back to batch: ${streamErr}`);
         transcript = await transcribeAudio(audioBase64, mimeType);
-        console.log('[ScreenSense][SW] Batch transcription result:', transcript);
+        dbg(`Transcript (batch): "${transcript}"`);
       }
+      endTranscribe();
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Couldn't catch that — try holding a bit longer";
       sendToTab(tabId, { action: 'pipeline-error', error: msg });
@@ -492,9 +567,15 @@ async function runPipeline(tabId: number, audioBase64: string, mimeType: string)
     }
 
     // Send command + screenshot + DOM to backend for Nova reasoning
+    const endNova = dbgTimer('Pipeline: Nova /task call');
     let taskResult: TaskResponse;
     try {
       taskResult = await sendTask(transcript, screenshot, domSnapshot);
+      endNova();
+      dbg(`Nova initial response: type=${taskResult.type} reasoning="${taskResult.reasoning || 'none'}" actions=${taskResult.actions?.length || 0}`);
+      if (taskResult.actions) {
+        dbg(`Initial actions: ${JSON.stringify(taskResult.actions.map(a => a.description))}`);
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Something went wrong — give it another try';
       sendToTab(tabId, { action: 'pipeline-error', error: msg });

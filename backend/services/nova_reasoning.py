@@ -219,8 +219,10 @@ Response: {"type": "steps", "reasoning": "The user wants to go to YouTube. I'll 
 
 CRITICAL RULES FOR MULTI-STEP TASKS:
 - If the user's command involves multiple steps (search + click + add to cart), plan the FIRST batch of actions and the agent loop will call you again after execution to continue.
+- ALWAYS include a search button click or form submit after typing in a search box. Typing alone does NOT submit the search. Always pair type + click search button.
 - Always scroll commands MUST return type "steps" with a scroll action — NEVER return "done" or "answer" for scroll requests.
 - NEVER return "done" on the first call unless the task is literally already complete on the current page.
+- Be FAST and DECISIVE. Return the minimum actions needed for the current step. Don't over-explain.
 
 IMPORTANT: Always look at the DOM snapshot FIRST to find the right selector. The screenshot helps you understand what the user sees, but the DOM snapshot has the actual selectors you must use."""
 
