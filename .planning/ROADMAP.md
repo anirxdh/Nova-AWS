@@ -77,7 +77,10 @@ Plans:
   2. User says "Search for wireless headphones" and the extension types the query into the search box and submits
   3. Unknown or unsafe action types are rejected before execution and the user sees an error state in the bubble
   4. After each action the bubble shows a brief human-readable summary of what was done and to which element
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 09-01-PLAN.md — Action executor module with safety allowlist, sanitizer, and content-script handler
+- [ ] 09-02-PLAN.md — Service worker step execution orchestrator with bubble progress
 
 ### Phase 10: Agent Loop
 **Goal**: After each executed action the extension re-captures the page and asks Nova whether the task is complete; Nova either issues the next step or signals Done, continuing autonomously until finished
@@ -99,5 +102,5 @@ Plans:
 | 6. Backend Foundation | 2/2 | Complete   | 2026-03-15 | - |
 | 7. Nova Reasoning + DOM Context | 2/2 | Complete   | 2026-03-15 | - |
 | 8. Unified Cursor UI | v2.0 | 0/2 | Planning complete | - |
-| 9. DOM Automation | v2.0 | 0/TBD | Not started | - |
+| 9. DOM Automation | v2.0 | 0/2 | Planning complete | - |
 | 10. Agent Loop | v2.0 | 0/TBD | Not started | - |
