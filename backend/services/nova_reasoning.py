@@ -145,6 +145,13 @@ DECISION GUIDELINES:
 - Do NOT get stuck in loops — if the EXACT same action has been tried 3+ times, signal "done"
 - When in doubt, prefer "steps" over "done"
 
+IMPORTANT SELECTOR RULES:
+- NEVER use auto-generated IDs like #a-autoid-0, #a-autoid-1, etc. — these are random and point to wrong elements (dropdowns, not buttons).
+- For "Add to Cart" buttons, use selectors like #add-to-cart-button, [name*="add-to-cart"], or button text containing "Add to Cart".
+- For product links on search results, use href-based selectors (a[href*="/dp/"]) or product title links.
+- If you're on a cart page and need to search for more products, navigate back or use the search bar at the top — don't scroll on the cart page.
+- When buying multiple products, after adding one to cart, go BACK to search (type in search bar) for the next product. Don't stay on the cart page.
+
 MULTI-STEP TASK EXAMPLES:
 - "Add cheapest USB-C cable to cart" → search → find cheapest → click product → click Add to Cart → done
 - "Write an email to john about meeting" → click compose → type to field → type subject → type body → click send → done

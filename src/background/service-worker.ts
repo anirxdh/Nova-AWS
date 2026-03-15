@@ -7,7 +7,7 @@ import { transcribeAudio, transcribeAudioStreaming, connectSSE, checkBackendHeal
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { streamGeminiResponse, generateTtsSummary } from './api/groq-vision';
 
-const MAX_AGENT_ITERATIONS = 10;
+const MAX_AGENT_ITERATIONS = 25;
 
 let currentState: ExtensionState = 'idle';
 let latestScreenshot: string | undefined;
