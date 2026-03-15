@@ -414,7 +414,7 @@ function scrapeProducts(): DomSnapshot['products'] {
 
   // Strategy 1: Amazon-specific selectors
   const amazonResults = document.querySelectorAll(
-    '[data-component-type="s-search-result"], [data-asin][data-asin!=""]'
+    '[data-component-type="s-search-result"], [data-asin]:not([data-asin=""])'
   );
   amazonResults.forEach((el) => {
     if (seen.has(el) || products.length >= 40) return;
@@ -607,20 +607,30 @@ export function scrapeDom(): DomSnapshot {
     description: getMetaContent('description'),
     canonicalUrl: getCanonicalUrl(),
 
-    sections: scrapeSections(),
+    sections: safe(scrapeSections, []),
 
-    buttons: scrapeButtons(),
-    links: scrapeLinks(),
-    inputs: scrapeInputs(),
-    forms: scrapeForms(),
+    buttons: safe(scrapeButtons, []),
+    links: safe(scrapeLinks, []),
+    inputs: safe(scrapeInputs, []),
+    forms: safe(scrapeForms, []),
 
-    headings: scrapeHeadings(),
-    images: scrapeImages(),
-    tables: scrapeTables(),
-    lists: scrapeLists(),
+    headings: safe(scrapeHeadings, []),
+    images: safe(scrapeImages, []),
+    tables: safe(scrapeTables, []),
+    lists: safe(scrapeLists, []),
 
-    products: scrapeProducts(),
+    products: safe(scrapeProducts, []),
 
-    text_content: scrapeTextContent(),
+    text_content: safe(scrapeTextContent, ''),
   };
+}
+
+/** Run a scraper function safely — return fallback on error instead of crashing */
+function safe<T>(fn: () => T, fallback: T): T {
+  try {
+    return fn();
+  } catch (e) {
+    console.warn(`[ScreenSense][dom-scraper] ${fn.name} failed:`, e);
+    return fallback;
+  }
 }
