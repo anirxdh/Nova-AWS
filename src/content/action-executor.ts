@@ -153,6 +153,29 @@ async function actionTypeText(selector: string, value: string): Promise<ActionRe
   }
   input.dispatchEvent(new Event('input', { bubbles: true }));
   input.dispatchEvent(new Event('change', { bubbles: true }));
+
+  // Auto-submit search boxes by pressing Enter
+  const isSearch = input.type === 'search' ||
+    input.getAttribute('role') === 'searchbox' ||
+    input.getAttribute('aria-label')?.toLowerCase().includes('search') ||
+    input.name?.toLowerCase().includes('search') ||
+    input.name?.toLowerCase().includes('keyword') ||
+    !!input.closest('form[role="search"]');
+
+  if (isSearch && value.length > 0) {
+    // Brief delay for autocomplete to settle, then submit
+    await new Promise(r => setTimeout(r, 300));
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+    input.dispatchEvent(new KeyboardEvent('keypress', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+    input.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
+    // Fallback: submit the form directly
+    const form = input.closest('form');
+    if (form) {
+      try { form.requestSubmit(); } catch { form.submit(); }
+    }
+    return { ok: true, summary: `Typed '${value.slice(0, 30)}' and searched` };
+  }
+
   return { ok: true, summary: `Typed '${value.slice(0, 30)}' into ${selector}` };
 }
 
