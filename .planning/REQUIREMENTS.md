@@ -10,7 +10,7 @@
 - [x] **BACK-01**: FastAPI server scaffold with CORS, health check, `.env` for AWS credentials
 - [x] **BACK-02**: POST /transcribe endpoint — receives audio, calls Nova Sonic STT, returns transcript
 - [ ] **BACK-03**: POST /task endpoint — receives command + screenshot + DOM snapshot, calls Nova 2 Lite, returns answer or structured action steps
-- [ ] **BACK-04**: SSE streaming for real-time status updates to extension (Transcribing, Understanding, Planning, step names, Done)
+- [x] **BACK-04**: SSE streaming for real-time status updates to extension (Transcribing, Understanding, Planning, step names, Done)
 
 ### AI Integration
 
@@ -21,7 +21,7 @@
 
 ### Extension
 
-- [ ] **EXT-01**: Rewire service worker to send audio/screenshots to FastAPI backend instead of Groq APIs
+- [x] **EXT-01**: Rewire service worker to send audio/screenshots to FastAPI backend instead of Groq APIs
 - [ ] **EXT-02**: DOM scraper — captures full page structure (buttons, links, inputs, forms, text content) with selectors and visibility status
 - [ ] **EXT-03**: Hide overlay/bubble before screenshot capture, re-show after
 - [ ] **EXT-04**: Unified cursor-following UI — waveform, status updates, step execution updates, Q&A streaming answers, all attached to mouse movement; replaces current static overlay
@@ -64,12 +64,12 @@
 | BACK-01 | Phase 6 | Complete |
 | BACK-02 | Phase 6 | Complete |
 | BACK-03 | Phase 7 | Pending |
-| BACK-04 | Phase 6 + Phase 8 | Pending |
+| BACK-04 | Phase 6 + Phase 8 | Complete |
 | NOVA-01 | Phase 6 | Complete |
 | NOVA-02 | Phase 10 | Pending |
 | NOVA-03 | Phase 7 | Pending |
 | NOVA-04 | Phase 10 | Pending |
-| EXT-01 | Phase 6 | Pending |
+| EXT-01 | Phase 6 | Complete |
 | EXT-02 | Phase 7 | Pending |
 | EXT-03 | Phase 7 | Pending |
 | EXT-04 | Phase 8 | Pending |

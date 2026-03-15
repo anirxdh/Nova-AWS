@@ -18,7 +18,7 @@ Built during Global Engineering Hackathon 2026. Push-to-talk Chrome extension wi
 
 **Milestone Goal:** Transform ScreenSense Voice from a Q&A assistant into a screen-aware AI execution agent. Users speak a command, Nova interprets it, and the extension either answers or executes steps on the page autonomously.
 
-- [ ] **Phase 6: Backend Foundation** - FastAPI server with Nova Sonic STT endpoint and SSE streaming
+- [x] **Phase 6: Backend Foundation** - FastAPI server with Nova Sonic STT endpoint and SSE streaming (completed 2026-03-15)
 - [ ] **Phase 7: Nova Reasoning + DOM Context** - Nova 2 Lite Q&A using screenshot + DOM snapshot via backend
 - [ ] **Phase 8: Unified Cursor UI** - Live status bubble attached to cursor, fed by SSE events
 - [ ] **Phase 9: DOM Automation** - Click, type, navigate, scroll executor with safety allowlist
@@ -35,7 +35,7 @@ Built during Global Engineering Hackathon 2026. Push-to-talk Chrome extension wi
   2. User holds backtick, speaks, releases — audio travels to backend, Nova Sonic transcribes it, transcript appears in extension console
   3. Backend emits SSE events (Transcribing, Done) that the extension receives and logs
   4. Extension no longer calls Groq APIs directly — all AI calls go through FastAPI
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 Plans:
 - [ ] 06-01-PLAN.md — FastAPI scaffold + POST /transcribe with Nova Sonic STT
 - [ ] 06-02-PLAN.md — SSE event streaming + extension service worker rewire
@@ -90,7 +90,7 @@ Plans:
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 6. Backend Foundation | v2.0 | 0/2 | Planning complete | - |
+| 6. Backend Foundation | 2/2 | Complete   | 2026-03-15 | - |
 | 7. Nova Reasoning + DOM Context | v2.0 | 0/TBD | Not started | - |
 | 8. Unified Cursor UI | v2.0 | 0/TBD | Not started | - |
 | 9. DOM Automation | v2.0 | 0/TBD | Not started | - |

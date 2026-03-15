@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Core Nova Agent
 status: planning
-stopped_at: Completed 06-01-PLAN.md — FastAPI backend with Nova Sonic STT
-last_updated: "2026-03-15T05:33:05.219Z"
+stopped_at: Completed 06-02-PLAN.md — SSE event streaming + extension rewire to FastAPI backend
+last_updated: "2026-03-15T05:38:34.399Z"
 last_activity: 2026-03-14 — Roadmap created for v2.0 Core Nova Agent (phases 6-10)
 progress:
   total_phases: 5
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 2
-  completed_plans: 1
+  completed_plans: 2
   percent: 50
 ---
 
@@ -51,6 +51,7 @@ Progress: [█████░░░░░] 50%
 
 *Updated after each plan completion*
 | Phase 06-backend-foundation P06-01 | 3 | 2 tasks | 9 files |
+| Phase 06-backend-foundation P06-02 | 2.5min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -65,6 +66,8 @@ Recent decisions affecting current work:
 - [Phase 06-backend-foundation]: boto3 converse_stream used for Nova Sonic STT (amazon.nova-sonic-v1:0) — streams text deltas for batch-mode transcript
 - [Phase 06-backend-foundation]: CORS wildcard (allow_origins=['*']) for dev — Chrome extensions lack stable origin, restrict in prod
 - [Phase 06-backend-foundation]: Service layer pattern: boto3/external calls in services/, routers handle only HTTP concerns
+- [Phase 06-backend-foundation]: asyncio.to_thread() wraps sync boto3 transcribe_audio call in /transcribe to prevent event loop blocking during SSE delivery
+- [Phase 06-backend-foundation]: Extension health-check-before-connect: checkBackendHealth() called before connectSSE() to fail silently when backend is not running
 
 ### Pending Todos
 
@@ -77,6 +80,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-15T05:33:05.214Z
-Stopped at: Completed 06-01-PLAN.md — FastAPI backend with Nova Sonic STT
+Last session: 2026-03-15T05:38:34.398Z
+Stopped at: Completed 06-02-PLAN.md — SSE event streaming + extension rewire to FastAPI backend
 Resume file: None
