@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Core Nova Agent
 status: planning
-stopped_at: Completed 07-01-PLAN.md — Nova 2 Lite reasoning service and POST /task endpoint
-last_updated: "2026-03-15T05:59:08.016Z"
+stopped_at: Completed 07-02-PLAN.md — Extension pipeline DOM scraper, overlay-safe screenshot, Nova POST /task wiring
+last_updated: "2026-03-15T06:05:46.488Z"
 last_activity: 2026-03-14 — Roadmap created for v2.0 Core Nova Agent (phases 6-10)
 progress:
   total_phases: 5
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 4
-  completed_plans: 3
+  completed_plans: 4
   percent: 50
 ---
 
@@ -53,6 +53,7 @@ Progress: [█████░░░░░] 50%
 | Phase 06-backend-foundation P06-01 | 3 | 2 tasks | 9 files |
 | Phase 06-backend-foundation P06-02 | 2.5min | 2 tasks | 6 files |
 | Phase 07-nova-reasoning-dom-context P01 | 3min | 2 tasks | 3 files |
+| Phase 07-nova-reasoning-dom-context P07-02 | 9m | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -71,6 +72,9 @@ Recent decisions affecting current work:
 - [Phase 06-backend-foundation]: Extension health-check-before-connect: checkBackendHealth() called before connectSSE() to fail silently when backend is not running
 - [Phase 07-nova-reasoning-dom-context]: boto3 converse (not converse_stream) used for Nova 2 Lite — full response needed before determining answer vs steps
 - [Phase 07-nova-reasoning-dom-context]: JSON parse fallback wraps plain-text Nova responses as {type: answer} ensuring consistent response shape for extension
+- [Phase 07-nova-reasoning-dom-context]: DOM scraper limits payload: 50 buttons/links, 30 inputs, 10 forms, 3000 chars text for POST /task
+- [Phase 07-nova-reasoning-dom-context]: groqKey gate removed from pipeline; Nova via backend is primary AI path; groq-vision retained for Phase 8+ migration
+- [Phase 07-nova-reasoning-dom-context]: steps response type displays numbered action descriptions in overlay; execution deferred to Phase 9
 
 ### Pending Todos
 
@@ -83,6 +87,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-15T05:59:08.012Z
-Stopped at: Completed 07-01-PLAN.md — Nova 2 Lite reasoning service and POST /task endpoint
+Last session: 2026-03-15T06:05:46.486Z
+Stopped at: Completed 07-02-PLAN.md — Extension pipeline DOM scraper, overlay-safe screenshot, Nova POST /task wiring
 Resume file: None

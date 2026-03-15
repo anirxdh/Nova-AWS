@@ -22,8 +22,8 @@
 ### Extension
 
 - [x] **EXT-01**: Rewire service worker to send audio/screenshots to FastAPI backend instead of Groq APIs
-- [ ] **EXT-02**: DOM scraper — captures full page structure (buttons, links, inputs, forms, text content) with selectors and visibility status
-- [ ] **EXT-03**: Hide overlay/bubble before screenshot capture, re-show after
+- [x] **EXT-02**: DOM scraper — captures full page structure (buttons, links, inputs, forms, text content) with selectors and visibility status
+- [x] **EXT-03**: Hide overlay/bubble before screenshot capture, re-show after
 - [ ] **EXT-04**: Unified cursor-following UI — waveform, status updates, step execution updates, Q&A streaming answers, all attached to mouse movement; replaces current static overlay
 - [ ] **EXT-05**: DOM automation executor — executes click, type, navigate, extract, scroll actions from backend step plans
 - [ ] **EXT-06**: Action summary reporter — after each action, describes what was done, which element, and why
@@ -70,8 +70,8 @@
 | NOVA-03 | Phase 7 | Complete |
 | NOVA-04 | Phase 10 | Pending |
 | EXT-01 | Phase 6 | Complete |
-| EXT-02 | Phase 7 | Pending |
-| EXT-03 | Phase 7 | Pending |
+| EXT-02 | Phase 7 | Complete |
+| EXT-03 | Phase 7 | Complete |
 | EXT-04 | Phase 8 | Pending |
 | EXT-05 | Phase 9 | Pending |
 | EXT-06 | Phase 9 | Pending |
