@@ -26,25 +26,28 @@ const Popup: React.FC = () => {
 
   if (settings === null || micGranted === null || setupDone === null) {
     return (
-      <div className="w-72 p-4 bg-gray-800 text-gray-300">
+      <div className="w-72 p-4 bg-[#232F3E] text-gray-300">
         <p>Loading...</p>
       </div>
     );
   }
 
   return (
-    <div className="w-72 p-4 bg-gray-800">
-      <div className="flex items-center gap-2 mb-3">
+    <div className="w-72 p-4 bg-[#232F3E]">
+      <div className="flex items-center gap-2 mb-1">
         <img src={chrome.runtime.getURL('icons/icon-48.png')} alt="" className="w-6 h-6 rounded" />
         <h1 className="text-base font-bold text-white">ScreenSense Voice</h1>
       </div>
+      <p className="text-[10px] font-medium tracking-wider uppercase mb-3 ml-8" style={{ color: 'rgba(0, 168, 225, 0.7)' }}>
+        Powered by Nova
+      </p>
 
       {!setupDone && (
         <div className="bg-yellow-900/50 border border-yellow-500/50 rounded-lg p-3 mb-3">
           <p className="text-yellow-300 text-sm mb-2">Setup not complete</p>
           <button
             onClick={openWelcome}
-            className="text-sm text-blue-400 hover:text-blue-300 underline"
+            className="text-sm text-[#FF9900] hover:text-[#FFB84D] underline"
           >
             Complete setup
           </button>
@@ -54,7 +57,7 @@ const Popup: React.FC = () => {
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <span className="text-sm text-gray-400">Shortcut</span>
-          <span className="font-mono text-sm bg-gray-700 px-2 py-0.5 rounded text-blue-300">
+          <span className="font-mono text-sm bg-gray-700 px-2 py-0.5 rounded text-[#FFB84D]">
             {shortcutDisplay}
           </span>
         </div>
@@ -79,7 +82,7 @@ const Popup: React.FC = () => {
 
         <button
           onClick={openSettings}
-          className="w-full text-sm text-gray-300 hover:text-white py-1.5 rounded hover:bg-gray-700 transition-colors"
+          className="w-full text-sm text-gray-300 hover:text-white py-1.5 rounded hover:bg-[#1A2332] transition-colors"
         >
           Settings
         </button>

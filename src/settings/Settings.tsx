@@ -24,14 +24,14 @@ const GearIllustration: React.FC = () => (
   <svg viewBox="0 0 200 160" className="w-40 h-auto mx-auto" aria-hidden="true">
     <defs>
       <radialGradient id="gearGlow" cx="50%" cy="50%" r="50%">
-        <stop offset="0%" stopColor="#818cf8" stopOpacity="0.5">
+        <stop offset="0%" stopColor="#FF9900" stopOpacity="0.5">
           <animate attributeName="stopOpacity" values="0.5;0.25;0.5" dur="3s" repeatCount="indefinite" />
         </stop>
-        <stop offset="100%" stopColor="#818cf8" stopOpacity="0" />
+        <stop offset="100%" stopColor="#FF9900" stopOpacity="0" />
       </radialGradient>
       <linearGradient id="gearGrad" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0%" stopColor="#a5b4fc" />
-        <stop offset="100%" stopColor="#818cf8" />
+        <stop offset="0%" stopColor="#FFB84D" />
+        <stop offset="100%" stopColor="#FF9900" />
       </linearGradient>
     </defs>
     <circle cx="100" cy="80" r="60" fill="url(#gearGlow)" />
@@ -51,8 +51,8 @@ const GearIllustration: React.FC = () => (
         />
       ))}
       <circle cx="0" cy="0" r="28" fill="none" stroke="url(#gearGrad)" strokeWidth="8" />
-      <circle cx="0" cy="0" r="12" fill="#1e1b4b" stroke="#818cf8" strokeWidth="2" />
-      <circle cx="0" cy="0" r="5" fill="#818cf8" opacity="0.6">
+      <circle cx="0" cy="0" r="12" fill="#232F3E" stroke="#FF9900" strokeWidth="2" />
+      <circle cx="0" cy="0" r="5" fill="#FF9900" opacity="0.6">
         <animate attributeName="opacity" values="0.6;0.3;0.6" dur="2s" repeatCount="indefinite" />
       </circle>
     </g>
@@ -65,13 +65,11 @@ const Settings: React.FC = () => {
   const [settings, setSettings] = useState<ExtensionSettings | null>(null);
   const [capturing, setCapturing] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [groqKey, setGroqKey] = useState('');
   const [elevenLabsKey, setElevenLabsKey] = useState('');
 
   useEffect(() => {
     getSettings().then(setSettings);
     getApiKeys().then((keys) => {
-      setGroqKey(keys.groqKey || '');
       setElevenLabsKey(keys.elevenLabsKey || '');
     });
   }, []);
@@ -89,7 +87,6 @@ const Settings: React.FC = () => {
     if (settings) {
       await saveSettings(settings);
       await saveApiKeys({
-        groqKey: groqKey || undefined,
         elevenLabsKey: elevenLabsKey || undefined,
       });
       setSaved(true);
@@ -230,28 +227,15 @@ const Settings: React.FC = () => {
             {/* Divider */}
             <div className="divider" />
 
-            {/* API Key */}
+            {/* AWS Transcribe Note */}
             <div className="field-group">
-              <label className="field-label">Groq API Key</label>
-              <input
-                type="password"
-                value={groqKey}
-                onChange={(e) => setGroqKey(e.target.value)}
-                placeholder="gsk_..."
-                className="text-input"
-              />
-              <p className="field-hint">
-                Get your free key from{' '}
-                <a
-                  href="https://console.groq.com/keys"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="field-link"
-                >
-                  console.groq.com
-                </a>
-                {' '}&middot; no credit card needed
-              </p>
+              <label className="field-label">Speech-to-Text</label>
+              <div className="aws-note">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" width="18" height="18" style={{ flexShrink: 0, color: '#00A8E1' }}>
+                  <path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                <span>Speech-to-text powered by Amazon Transcribe. Configure AWS credentials in <code style={{ color: '#FFB84D', fontSize: 12 }}>backend/.env</code></span>
+              </div>
             </div>
 
             {/* ElevenLabs API Key */}
@@ -301,7 +285,7 @@ const Settings: React.FC = () => {
 
         {/* Footer */}
         <p className="footer-text">
-          ScreenSense Voice &middot; TreeLine Hacks 2026
+          ScreenSense Voice &middot; Amazon Nova Hackathon 2026
         </p>
       </div>
 
@@ -309,7 +293,7 @@ const Settings: React.FC = () => {
         /* ─── Reset & Base ─── */
         .settings-root {
           min-height: 100vh;
-          background: #0a0a1a;
+          background: #0D1117;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -327,19 +311,19 @@ const Settings: React.FC = () => {
         }
         .orb-1 {
           width: 400px; height: 400px;
-          background: radial-gradient(circle, rgba(99, 102, 241, 0.15), transparent);
+          background: radial-gradient(circle, rgba(255, 153, 0, 0.15), transparent);
           top: -100px; left: -100px;
           animation: orbFloat1 15s ease-in-out infinite;
         }
         .orb-2 {
           width: 350px; height: 350px;
-          background: radial-gradient(circle, rgba(139, 92, 246, 0.12), transparent);
+          background: radial-gradient(circle, rgba(232, 139, 0, 0.12), transparent);
           bottom: -80px; right: -80px;
           animation: orbFloat2 18s ease-in-out infinite;
         }
         .orb-3 {
           width: 250px; height: 250px;
-          background: radial-gradient(circle, rgba(59, 130, 246, 0.1), transparent);
+          background: radial-gradient(circle, rgba(0, 168, 225, 0.1), transparent);
           top: 50%; left: 60%;
           animation: orbFloat3 12s ease-in-out infinite;
         }
@@ -361,7 +345,7 @@ const Settings: React.FC = () => {
           font-size: 22px;
           font-weight: 700;
           letter-spacing: -0.03em;
-          background: linear-gradient(135deg, #c4b5fd, #818cf8);
+          background: linear-gradient(135deg, #FFB84D, #FF9900);
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
           background-clip: text;
@@ -387,7 +371,7 @@ const Settings: React.FC = () => {
           line-height: 1.2;
         }
         .gradient-text {
-          background: linear-gradient(135deg, #a5b4fc, #818cf8, #c4b5fd);
+          background: linear-gradient(135deg, #FFB84D, #FF9900, #00A8E1);
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
           background-clip: text;
@@ -408,8 +392,22 @@ const Settings: React.FC = () => {
           text-transform: uppercase;
         }
         .field-value {
-          color: #a5b4fc;
+          color: #FFB84D;
           text-transform: none;
+        }
+
+        /* ─── AWS Note ─── */
+        .aws-note {
+          display: flex;
+          align-items: flex-start;
+          gap: 10px;
+          background: rgba(0, 168, 225, 0.06);
+          border: 1px solid rgba(0, 168, 225, 0.15);
+          border-radius: 12px;
+          padding: 14px 16px;
+          font-size: 13px;
+          line-height: 1.5;
+          color: rgba(203, 213, 225, 0.6);
         }
 
         /* ─── Key Display ─── */
@@ -427,18 +425,18 @@ const Settings: React.FC = () => {
           transition: all 0.3s ease;
         }
         .key-display:hover {
-          background: rgba(99, 102, 241, 0.08);
-          border-color: rgba(99, 102, 241, 0.2);
+          background: rgba(255, 153, 0, 0.08);
+          border-color: rgba(255, 153, 0, 0.2);
         }
         .key-badge {
           display: inline-flex; align-items: center; justify-content: center;
-          background: rgba(99, 102, 241, 0.15);
-          border: 1px solid rgba(99, 102, 241, 0.3);
+          background: rgba(255, 153, 0, 0.15);
+          border: 1px solid rgba(255, 153, 0, 0.3);
           border-radius: 6px;
           padding: 2px 12px;
           font-family: 'SF Mono', 'Fira Code', monospace;
           font-size: 16px; font-weight: 600;
-          color: #a5b4fc;
+          color: #FFB84D;
           box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
         .key-hint {
@@ -448,19 +446,19 @@ const Settings: React.FC = () => {
         .key-capture {
           width: 100%;
           padding: 14px;
-          background: rgba(99, 102, 241, 0.08);
-          border: 2px solid rgba(99, 102, 241, 0.4);
+          background: rgba(255, 153, 0, 0.08);
+          border: 2px solid rgba(255, 153, 0, 0.4);
           border-radius: 14px;
           text-align: center;
           font-size: 14px;
           font-weight: 500;
-          color: #a5b4fc;
+          color: #FFB84D;
           outline: none;
           animation: pulseCapture 1.5s ease-in-out infinite;
         }
         @keyframes pulseCapture {
-          0%, 100% { border-color: rgba(99, 102, 241, 0.4); }
-          50% { border-color: rgba(99, 102, 241, 0.7); }
+          0%, 100% { border-color: rgba(255, 153, 0, 0.4); }
+          50% { border-color: rgba(255, 153, 0, 0.7); }
         }
 
         /* ─── Range Input ─── */
@@ -478,8 +476,8 @@ const Settings: React.FC = () => {
           -webkit-appearance: none;
           width: 18px; height: 18px;
           border-radius: 50%;
-          background: linear-gradient(135deg, #818cf8, #6366f1);
-          box-shadow: 0 2px 8px rgba(99, 102, 241, 0.4);
+          background: linear-gradient(135deg, #FF9900, #E88B00);
+          box-shadow: 0 2px 8px rgba(255, 153, 0, 0.4);
           cursor: pointer;
           transition: transform 0.2s ease;
         }
@@ -513,9 +511,9 @@ const Settings: React.FC = () => {
           font-family: 'SF Mono', 'Fira Code', monospace;
         }
         .text-input:focus {
-          border-color: rgba(99, 102, 241, 0.4);
-          background: rgba(99, 102, 241, 0.04);
-          box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+          border-color: rgba(255, 153, 0, 0.4);
+          background: rgba(255, 153, 0, 0.04);
+          box-shadow: 0 0 0 3px rgba(255, 153, 0, 0.1);
         }
         .field-hint {
           margin-top: 8px;
@@ -523,12 +521,12 @@ const Settings: React.FC = () => {
           color: rgba(148, 163, 184, 0.35);
         }
         .field-link {
-          color: rgba(165, 180, 252, 0.7);
+          color: rgba(255, 184, 77, 0.7);
           text-decoration: none;
           transition: color 0.2s;
         }
         .field-link:hover {
-          color: #a5b4fc;
+          color: #FFB84D;
           text-decoration: underline;
         }
 
@@ -562,9 +560,9 @@ const Settings: React.FC = () => {
           background: rgba(255,255,255,0.03);
         }
         .toggle-btn.active {
-          background: rgba(99, 102, 241, 0.15);
-          border-color: rgba(99, 102, 241, 0.3);
-          color: #a5b4fc;
+          background: rgba(255, 153, 0, 0.15);
+          border-color: rgba(255, 153, 0, 0.3);
+          color: #FFB84D;
           font-weight: 600;
         }
 
@@ -601,13 +599,13 @@ const Settings: React.FC = () => {
         .btn:hover::before { opacity: 1; }
 
         .btn-primary {
-          background: linear-gradient(135deg, #6366f1, #818cf8);
+          background: linear-gradient(135deg, #E88B00, #FF9900);
           color: #fff;
-          box-shadow: 0 4px 16px rgba(99, 102, 241, 0.3), inset 0 1px 0 rgba(255,255,255,0.1);
+          box-shadow: 0 4px 16px rgba(255, 153, 0, 0.3), inset 0 1px 0 rgba(255,255,255,0.1);
         }
         .btn-primary:hover {
           transform: translateY(-1px);
-          box-shadow: 0 8px 24px rgba(99, 102, 241, 0.4), inset 0 1px 0 rgba(255,255,255,0.1);
+          box-shadow: 0 8px 24px rgba(255, 153, 0, 0.4), inset 0 1px 0 rgba(255,255,255,0.1);
         }
         .btn-primary:active { transform: translateY(0); }
 
