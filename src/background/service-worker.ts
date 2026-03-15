@@ -200,6 +200,33 @@ async function waitForDomStable(tabId: number, timeout = 2000, settleMs = 300): 
   }
 }
 
+/** Wait until DOM scrape returns meaningful content (buttons/inputs/links > 0) */
+async function waitForDomContent(tabId: number, maxWaitMs = 8000): Promise<object> {
+  const start = Date.now();
+  let lastSnapshot: object = {};
+
+  while (Date.now() - start < maxWaitMs) {
+    try {
+      const domResponse = await chrome.tabs.sendMessage(tabId, { action: 'scrape-dom' });
+      if (domResponse?.ok && domResponse.snapshot) {
+        const snap = domResponse.snapshot;
+        const hasContent = (snap.buttons?.length > 0) || (snap.inputs?.length > 0) || (snap.links?.length > 5);
+        if (hasContent) {
+          dbg(`waitForDomContent: found content after ${Date.now() - start}ms — buttons=${snap.buttons?.length || 0} inputs=${snap.inputs?.length || 0} links=${snap.links?.length || 0}`);
+          return snap;
+        }
+        lastSnapshot = snap;
+      }
+    } catch {
+      // Content script not ready yet
+    }
+    await new Promise(r => setTimeout(r, 500));
+  }
+
+  dbg(`waitForDomContent: timed out after ${maxWaitMs}ms — using last snapshot`);
+  return lastSnapshot;
+}
+
 async function runAgentLoop(
   tabId: number,
   originalCommand: string,
@@ -368,7 +395,14 @@ async function runAgentLoop(
           stepIndex: actionHistory.length,
           totalSteps: 0,
         });
-        dbg(`Navigate complete, bubble re-established on new page`);
+        dbg(`Navigate complete, bubble re-established. Waiting for page content...`);
+        // Wait for the page to actually render content (AJAX, JS rendering)
+        sendToTab(tabId, {
+          action: 'bubble-state',
+          state: 'understanding',
+          label: 'Page loaded, waiting for content...',
+        });
+        await waitForDomContent(tabId, 8000);
         // Break inner loop to re-observe from the new page
         break;
       }
@@ -386,8 +420,8 @@ async function runAgentLoop(
 
     // After executing all actions in the current batch — re-observe the page
     dbg('Re-observing page...');
-    const endSettleTimer = dbgTimer('DOM settle wait');
-    await waitForDomStable(tabId, 2500, 300);
+    const endSettleTimer = dbgTimer('DOM settle + content wait');
+    await waitForDomStable(tabId, 2000, 250);
     endSettleTimer();
 
     // Re-capture screenshot of the updated page
@@ -404,18 +438,14 @@ async function runAgentLoop(
 
     endScreenTimer();
 
-    // Re-scrape DOM from the updated page
-    const endDomTimer = dbgTimer('DOM scrape');
+    // Re-scrape DOM — wait for meaningful content (handles AJAX-heavy pages)
+    const endDomTimer = dbgTimer('DOM content wait');
     let domSnapshot: object = {};
     try {
-      const domResponse = await chrome.tabs.sendMessage(tabId, { action: 'scrape-dom' });
-      if (domResponse?.ok && domResponse.snapshot) {
-        domSnapshot = domResponse.snapshot;
-      }
+      domSnapshot = await waitForDomContent(tabId, 5000);
     } catch {
-      console.warn('[ScreenSense][loop] Could not scrape DOM for re-observation, using empty object');
+      dbg('WARNING: DOM content wait failed entirely');
     }
-
     endDomTimer();
     const domKeys = domSnapshot ? Object.keys(domSnapshot) : [];
     const domButtonCount = (domSnapshot as any)?.buttons?.length || 0;
