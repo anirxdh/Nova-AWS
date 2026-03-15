@@ -285,10 +285,11 @@ async function runAgentLoop(
       return;
     }
 
-    // Inner loop: execute each action in the current batch
-    for (let stepIdx = 0; stepIdx < currentActions.length; stepIdx++) {
-      const step = currentActions[stepIdx];
-      dbg(`Action [${stepIdx + 1}/${currentActions.length}]: ${step.action} — "${step.description}" selector=${step.selector || 'none'}`);
+    // Execute ONLY the first action, then re-observe with fresh DOM.
+    // Even if Nova returns multiple actions, selectors go stale after each one.
+    {
+      const step = currentActions[0];
+      dbg(`Action: ${step.action} — "${step.description}" selector=${step.selector || 'none'}`);
 
       // Show intent: what we're about to do
       sendToTab(tabId, {
@@ -431,11 +432,11 @@ async function runAgentLoop(
         return;
       }
 
-      // Wait for DOM to settle using MutationObserver (replaces fixed 500ms delay)
+      // Wait for DOM to settle using MutationObserver
       await waitForDomStable(tabId, 1500, 200);
-    }
+    } // end single-action block
 
-    // After executing all actions in the current batch — re-observe the page
+    // Re-observe the page with fresh DOM after every action
     dbg('Re-observing page...');
     const endSettleTimer = dbgTimer('DOM settle + content wait');
     await waitForDomStable(tabId, 2000, 250);
