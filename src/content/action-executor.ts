@@ -25,6 +25,29 @@ export interface ActionResult {
 
 const ALLOWED_ACTIONS = new Set(['click', 'type', 'navigate', 'extract', 'scroll']);
 
+// ─── Element highlighting ─────────────────────────────────────────────────────
+
+async function highlightElement(el: Element): Promise<void> {
+  const htmlEl = el as HTMLElement;
+  const originalOutline = htmlEl.style.outline;
+  const originalTransition = htmlEl.style.transition;
+  htmlEl.style.transition = 'outline 0.15s ease';
+  htmlEl.style.outline = '2px solid rgba(48, 209, 88, 0.9)';
+  htmlEl.style.outlineOffset = '2px';
+  await new Promise(r => setTimeout(r, 400));
+  htmlEl.style.outline = originalOutline;
+  htmlEl.style.transition = originalTransition;
+  htmlEl.style.outlineOffset = '';
+}
+
+async function scrollIntoViewAndRetry(selector: string): Promise<Element | null> {
+  const el = document.querySelector(selector);
+  if (!el) return null;
+  (el as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' });
+  await new Promise(r => setTimeout(r, 500));
+  return document.querySelector(selector);
+}
+
 // ─── Rate limiter ─────────────────────────────────────────────────────────────
 
 let lastActionTime = 0;
@@ -80,19 +103,39 @@ function queryElement(selector: string): { el: Element | null; error?: string } 
 // ─── Action implementations ───────────────────────────────────────────────────
 
 async function actionClick(selector: string): Promise<ActionResult> {
-  const { el, error } = queryElement(selector);
+  let { el, error } = queryElement(selector);
   if (error) return { ok: false, summary: '', error };
-  if (!el) return { ok: false, summary: '', error: `Element not found: ${selector}` };
 
-  (el as HTMLElement).click();
+  if (!el) {
+    // Retry: scroll into view and re-query
+    el = await scrollIntoViewAndRetry(selector);
+    if (!el) return { ok: false, summary: '', error: `Element not found: ${selector}` };
+  }
+
+  await highlightElement(el);
+
+  try {
+    (el as HTMLElement).click();
+  } catch {
+    // Fallback: dispatch MouseEvent
+    el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+  }
+
   const label = el.textContent?.trim().slice(0, 50) || selector;
   return { ok: true, summary: `Clicked '${label}'` };
 }
 
 async function actionTypeText(selector: string, value: string): Promise<ActionResult> {
-  const { el, error } = queryElement(selector);
+  let { el, error } = queryElement(selector);
   if (error) return { ok: false, summary: '', error };
-  if (!el) return { ok: false, summary: '', error: `Element not found: ${selector}` };
+
+  if (!el) {
+    // Retry: scroll into view and re-query
+    el = await scrollIntoViewAndRetry(selector);
+    if (!el) return { ok: false, summary: '', error: `Element not found: ${selector}` };
+  }
+
+  await highlightElement(el);
 
   const input = el as HTMLInputElement;
   input.focus();
@@ -111,9 +154,14 @@ async function actionNavigate(url: string): Promise<ActionResult> {
 }
 
 async function actionExtract(selector: string): Promise<ActionResult> {
-  const { el, error } = queryElement(selector);
+  let { el, error } = queryElement(selector);
   if (error) return { ok: false, summary: '', error };
-  if (!el) return { ok: false, summary: '', error: `Element not found: ${selector}` };
+
+  if (!el) {
+    // Retry: scroll into view and re-query
+    el = await scrollIntoViewAndRetry(selector);
+    if (!el) return { ok: false, summary: '', error: `Element not found: ${selector}` };
+  }
 
   const text = el.textContent?.trim() ?? '';
   return {
@@ -124,29 +172,35 @@ async function actionExtract(selector: string): Promise<ActionResult> {
 }
 
 async function actionScroll(selectorOrDirection: string): Promise<ActionResult> {
-  const dir = selectorOrDirection.toLowerCase();
+  const dir = selectorOrDirection.toLowerCase().trim();
 
+  // Handle direction-based scrolling
   if (dir === 'up') {
-    window.scrollBy({ top: -300, behavior: 'smooth' });
-    return { ok: true, summary: `Scrolled up` };
+    window.scrollBy({ top: -window.innerHeight * 0.8, behavior: 'smooth' });
+    return { ok: true, summary: 'Scrolled up one screen' };
   }
   if (dir === 'down') {
-    window.scrollBy({ top: 300, behavior: 'smooth' });
-    return { ok: true, summary: `Scrolled down` };
+    window.scrollBy({ top: window.innerHeight * 0.8, behavior: 'smooth' });
+    return { ok: true, summary: 'Scrolled down one screen' };
   }
-  if (dir === 'top') {
+  if (dir === 'top' || dir === 'page top' || dir === 'start') {
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    return { ok: true, summary: `Scrolled to top` };
+    return { ok: true, summary: 'Scrolled to top of page' };
   }
-  if (dir === 'bottom') {
+  if (dir === 'bottom' || dir === 'page bottom' || dir === 'end' || dir.includes('bottom')) {
     window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-    return { ok: true, summary: `Scrolled to bottom` };
+    return { ok: true, summary: 'Scrolled to bottom of page' };
   }
 
-  // Treat as selector
-  const { el, error } = queryElement(selectorOrDirection);
+  // Try as CSS selector — scroll element into view
+  let { el, error } = queryElement(selectorOrDirection);
   if (error) return { ok: false, summary: '', error };
-  if (!el) return { ok: false, summary: '', error: `Element not found: ${selectorOrDirection}` };
+
+  if (!el) {
+    // Retry: scroll into view and re-query
+    el = await scrollIntoViewAndRetry(selectorOrDirection);
+    if (!el) return { ok: false, summary: '', error: `Element not found: ${selectorOrDirection}` };
+  }
 
   (el as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' });
   return { ok: true, summary: `Scrolled to ${selectorOrDirection}` };
