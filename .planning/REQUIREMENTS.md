@@ -61,27 +61,27 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| BACK-01 | — | Pending |
-| BACK-02 | — | Pending |
-| BACK-03 | — | Pending |
-| BACK-04 | — | Pending |
-| NOVA-01 | — | Pending |
-| NOVA-02 | — | Pending |
-| NOVA-03 | — | Pending |
-| NOVA-04 | — | Pending |
-| EXT-01 | — | Pending |
-| EXT-02 | — | Pending |
-| EXT-03 | — | Pending |
-| EXT-04 | — | Pending |
-| EXT-05 | — | Pending |
-| EXT-06 | — | Pending |
-| EXT-07 | — | Pending |
+| BACK-01 | Phase 6 | Pending |
+| BACK-02 | Phase 6 | Pending |
+| BACK-03 | Phase 7 | Pending |
+| BACK-04 | Phase 6 + Phase 8 | Pending |
+| NOVA-01 | Phase 6 | Pending |
+| NOVA-02 | Phase 10 | Pending |
+| NOVA-03 | Phase 7 | Pending |
+| NOVA-04 | Phase 10 | Pending |
+| EXT-01 | Phase 6 | Pending |
+| EXT-02 | Phase 7 | Pending |
+| EXT-03 | Phase 7 | Pending |
+| EXT-04 | Phase 8 | Pending |
+| EXT-05 | Phase 9 | Pending |
+| EXT-06 | Phase 9 | Pending |
+| EXT-07 | Phase 9 | Pending |
 
 **Coverage:**
 - Plan 1 requirements: 15 total
-- Mapped to phases: 0
-- Unmapped: 15 ⚠️
+- Mapped to phases: 15
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-03-14*
-*Last updated: 2026-03-14 after initial definition*
+*Last updated: 2026-03-14 — traceability filled after roadmap creation*
