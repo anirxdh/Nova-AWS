@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Core Nova Agent
 status: planning
-stopped_at: Completed 09-01-PLAN.md — DOM action executor with allowlist, sanitization, and content-script wiring
-last_updated: "2026-03-15T09:22:05.615Z"
+stopped_at: Completed 09-02-PLAN.md — service worker step orchestrator with dual bubble-step messaging and EXT-05/EXT-06 complete
+last_updated: "2026-03-15T09:52:54.514Z"
 last_activity: 2026-03-14 — Roadmap created for v2.0 Core Nova Agent (phases 6-10)
 progress:
   total_phases: 5
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 8
-  completed_plans: 6
+  completed_plans: 7
   percent: 50
 ---
 
@@ -56,6 +56,7 @@ Progress: [█████░░░░░] 50%
 | Phase 07-nova-reasoning-dom-context P07-02 | 9m | 3 tasks | 7 files |
 | Phase 08-unified-cursor-ui P08-01 | 4min | 2 tasks | 2 files |
 | Phase 09-dom-automation P09-01 | 2min | 2 tasks | 3 files |
+| Phase 09-dom-automation P09-02 | 10min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -81,6 +82,8 @@ Recent decisions affecting current work:
 - [Phase 08-unified-cursor-ui]: Bubble width is state-aware: 180px for status states, 380px for answering — edge-detection uses per-state width
 - [Phase 09-dom-automation]: action-executor uses 5-action allowlist (click/type/navigate/extract/scroll); unknown types rejected at gate
 - [Phase 09-dom-automation]: actionTypeText function name avoids collision with destructured actionType variable in executeAction
+- [Phase 09-dom-automation]: executeSteps sends two bubble-step messages per action (intent then result.summary) for EXT-06 action summary reporting
+- [Phase 09-dom-automation]: Conversation history stores step descriptions (the plan), not execution outcomes — bubble is the visibility channel for execution results
 
 ### Pending Todos
 
@@ -93,6 +96,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-15T09:22:05.613Z
-Stopped at: Completed 09-01-PLAN.md — DOM action executor with allowlist, sanitization, and content-script wiring
+Last session: 2026-03-15T09:52:54.512Z
+Stopped at: Completed 09-02-PLAN.md — service worker step orchestrator with dual bubble-step messaging and EXT-05/EXT-06 complete
 Resume file: None
