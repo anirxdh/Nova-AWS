@@ -695,12 +695,6 @@ export class CursorBubble {
       return;
     }
 
-    // Auto-show bubble if not visible (e.g., after page navigation destroyed old bubble)
-    if (!this.visible && (state === 'executing' || state === 'understanding' || state === 'done' || state === 'error')) {
-      // Show at top-right corner as default position (no cursor coords available)
-      this.show(window.innerWidth - 220, 60);
-    }
-
     if (!this.bubbleEl) return;
 
     this.currentState = state;
@@ -769,11 +763,6 @@ export class CursorBubble {
    * Update step display during 'executing' state.
    */
   setStep(name: string, index: number, total: number): void {
-    // Auto-show if not visible (after navigation)
-    if (!this.visible) {
-      this.show(window.innerWidth - 220, 60);
-      this.setState('executing');
-    }
     if (!this.bubbleEl) return;
 
     if (this.currentState !== 'executing') {

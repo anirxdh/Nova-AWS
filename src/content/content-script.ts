@@ -174,12 +174,20 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (message.action === 'bubble-state') {
+    // Auto-show bubble near cursor if not visible (e.g., after page navigation)
+    if (!bubble.isVisible() && message.state !== 'idle') {
+      bubble.show(lastCursorX || window.innerWidth / 2, lastCursorY || 80);
+    }
     bubble.setState(message.state, message.label);
   } else if (message.action === 'bubble-answer-chunk') {
     bubble.appendChunk(message.text);
   } else if (message.action === 'bubble-answer-done') {
     bubble.onAnswerDone();
   } else if (message.action === 'bubble-step') {
+    if (!bubble.isVisible()) {
+      bubble.show(lastCursorX || window.innerWidth / 2, lastCursorY || 80);
+      bubble.setState('executing');
+    }
     bubble.setStep(message.stepName, message.stepIndex, message.totalSteps);
   } else if (message.action === 'amplitude-data') {
     const freqData = new Uint8Array(message.data);
@@ -194,6 +202,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   } else if (message.action === 'conversation-info') {
     bubble.updateConversationInfo(message.info);
   } else if (message.action === 'pipeline-error') {
+    if (!bubble.isVisible()) {
+      bubble.show(lastCursorX || window.innerWidth / 2, lastCursorY || 80);
+    }
     bubble.showError(message.error);
   } else if (message.action === 'start-listening') {
     // Fallback: service worker tells us to show listening UI (handles iframe case
