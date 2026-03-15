@@ -268,6 +268,40 @@ async function runAgentLoop(
       // Track what we did for Nova's context in the next iteration
       actionHistory.push({ description: step.description, result: result.summary });
 
+      // Special handling for navigate actions — the page will reload, destroying the content script.
+      // We need to wait for the new page to fully load before continuing.
+      if (step.action === 'navigate') {
+        sendToTab(tabId, {
+          action: 'bubble-state',
+          state: 'understanding',
+          label: 'Navigating... waiting for page to load',
+        });
+        // Wait for navigation to start and complete
+        await new Promise(r => setTimeout(r, 3000));
+        // Poll for content script availability (new page loaded + content script injected)
+        let pageReady = false;
+        for (let attempt = 0; attempt < 10; attempt++) {
+          try {
+            await chrome.tabs.sendMessage(tabId, { action: 'scrape-dom' });
+            pageReady = true;
+            break;
+          } catch {
+            await new Promise(r => setTimeout(r, 1000));
+          }
+        }
+        if (!pageReady) {
+          sendToTab(tabId, {
+            action: 'pipeline-error',
+            error: 'Page failed to load after navigation',
+          });
+          return;
+        }
+        // Re-send the task banner on the new page
+        sendToTab(tabId, { action: 'bubble-set-task', task: originalCommand });
+        // Break inner loop to re-observe from the new page
+        break;
+      }
+
       // Check for cancellation after each action (fast response to Escape)
       if (agentLoopCancelled) {
         agentLoopCancelled = false;
