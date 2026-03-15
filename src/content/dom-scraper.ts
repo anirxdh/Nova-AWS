@@ -50,6 +50,7 @@ export interface DomSnapshot {
 export interface ElementInfo {
   selector: string;
   text: string;
+  role?: string;     // semantic role: "button", "link", "submit", "nav", etc.
   href?: string;
   visible: boolean;
   bbox?: { x: number; y: number; w: number; h: number };
@@ -252,6 +253,40 @@ function scrapeSections(): DomSnapshot['sections'] {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Element classification                                             */
+/* ------------------------------------------------------------------ */
+
+/** Classify an element's semantic purpose so Nova knows what it does */
+function classifyElement(el: Element, text: string): string | undefined {
+  const lower = text.toLowerCase();
+  const ariaLabel = (el.getAttribute('aria-label') || '').toLowerCase();
+  const id = (el.id || '').toLowerCase();
+  const name = (el.getAttribute('name') || '').toLowerCase();
+  const type = (el as HTMLInputElement).type?.toLowerCase() || '';
+
+  // Cart/purchase actions
+  if (lower.includes('add to cart') || lower.includes('add to basket') || id.includes('add-to-cart') || name.includes('add-to-cart')) return 'add-to-cart';
+  if (lower.includes('buy now') || id.includes('buy-now')) return 'buy-now';
+  if (lower.includes('checkout') || lower.includes('proceed to')) return 'checkout';
+
+  // Search
+  if (type === 'submit' || type === 'search') return 'submit';
+  if (ariaLabel.includes('search') || lower === 'search' || lower === 'go') return 'search-submit';
+
+  // Navigation
+  if (lower.includes('next') || lower.includes('previous') || lower.includes('back')) return 'navigation';
+  if (lower.includes('close') || lower.includes('dismiss') || lower === 'x' || lower === '×') return 'close';
+
+  // Sort/filter (avoid these — they're UI controls, not product actions)
+  if (lower.includes('sort by') || lower.includes('filter') || id.includes('autoid')) return 'sort-filter';
+
+  // Quantity
+  if (lower.includes('qty') || lower.includes('quantity') || name.includes('quantity')) return 'quantity';
+
+  return undefined;
+}
+
+/* ------------------------------------------------------------------ */
 /*  Interactive elements                                               */
 /* ------------------------------------------------------------------ */
 
@@ -273,6 +308,7 @@ function scrapeButtons(): ElementInfo[] {
     results.push({
       selector: buildSelector(el),
       text,
+      role: classifyElement(el, text),
       visible: true,
       bbox: getBBox(el),
     });
@@ -292,9 +328,17 @@ function scrapeLinks(): ElementInfo[] {
       200
     );
     if (!text) continue;
+    // Classify link purpose
+    const href = anchor.href || '';
+    let linkRole: string | undefined;
+    if (href.includes('/dp/') || href.includes('/product/')) linkRole = 'product-link';
+    else if (href.includes('/cart') || href.includes('/basket')) linkRole = 'cart-link';
+    else if (href.includes('/watch') || href.includes('/video')) linkRole = 'video-link';
+
     results.push({
       selector: buildSelector(el),
       text,
+      role: linkRole,
       href: anchor.href || undefined,
       visible: true,
       bbox: getBBox(el),
