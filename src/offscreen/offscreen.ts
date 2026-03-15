@@ -52,9 +52,11 @@ async function startRecording(): Promise<void> {
   analyser.smoothingTimeConstant = 0.8;
   source.connect(analyser);
 
-  // Choose best MIME type
+  // Choose best MIME type — prefer ogg (more compatible with transcription APIs)
   let mimeType: string | undefined;
-  if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+  if (MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) {
+    mimeType = 'audio/ogg;codecs=opus';
+  } else if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
     mimeType = 'audio/webm;codecs=opus';
   } else if (MediaRecorder.isTypeSupported('audio/webm')) {
     mimeType = 'audio/webm';
