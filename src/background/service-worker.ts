@@ -12,6 +12,11 @@ let latestScreenshot: string | undefined;
 let pendingTabId: number | null = null;
 let recordingTabId: number | null = null;
 let offscreenReady = false;
+let swAmpLogged = false;
+
+// Track whether the offscreen document has been set up and recording started
+// so that stop-recording waits for start-recording to complete.
+let recordingStartedPromise: Promise<void> | null = null;
 
 // Per-tab conversation history
 const conversations = new Map<number, ConversationTurn[]>();
@@ -37,6 +42,10 @@ function getConversationInfo(tabId: number): ConversationInfo {
 
 // ─── Offscreen Document Management ───
 
+// Resolves when the offscreen document has loaded its script and sent 'offscreen-ready'.
+let offscreenReadyResolve: (() => void) | null = null;
+let offscreenReadyPromise: Promise<void> | null = null;
+
 async function ensureOffscreen(): Promise<void> {
   const chrome_ = chrome as any;
 
@@ -49,12 +58,28 @@ async function ensureOffscreen(): Promise<void> {
     return;
   }
 
+  // Create a promise that resolves when the offscreen document signals it's ready
+  offscreenReadyPromise = new Promise<void>((resolve) => {
+    offscreenReadyResolve = resolve;
+  });
+
+  console.log('[ScreenSense][SW] Creating offscreen document...');
   await chrome_.offscreen.createDocument({
     url: 'offscreen.html',
     reasons: ['USER_MEDIA'],
     justification: 'Microphone recording for voice queries',
   });
+
+  // Wait for the offscreen script to load and register its listener.
+  // The offscreen document sends an 'offscreen-ready' message on load.
+  // Use a timeout fallback in case the ready message is missed.
+  await Promise.race([
+    offscreenReadyPromise,
+    new Promise<void>((resolve) => setTimeout(resolve, 500)),
+  ]);
+
   offscreenReady = true;
+  console.log('[ScreenSense][SW] Offscreen document ready');
 }
 
 // ─── Icon & State ───
@@ -90,7 +115,9 @@ async function resolveIconState(): Promise<void> {
 }
 
 function sendToTab(tabId: number, message: MessageType): void {
-  chrome.tabs.sendMessage(tabId, message);
+  chrome.tabs.sendMessage(tabId, message).catch(() => {
+    // Content script may not be loaded in this tab — ignore
+  });
 }
 
 function broadcastStateChange(state: ExtensionState): void {
@@ -106,12 +133,92 @@ function broadcastStateChange(state: ExtensionState): void {
 
 // ─── Pipeline ───
 
+async function executeSteps(
+  tabId: number,
+  actions: TaskResponse['actions']
+): Promise<void> {
+  if (!actions || actions.length === 0) {
+    sendToTab(tabId, { action: 'bubble-state', state: 'done' });
+    return;
+  }
+
+  const totalSteps = actions.length;
+
+  // Transition bubble to executing state
+  sendToTab(tabId, { action: 'bubble-state', state: 'executing' });
+
+  for (let i = 0; i < totalSteps; i++) {
+    const step = actions[i];
+
+    // Update bubble with current step name and progress
+    sendToTab(tabId, {
+      action: 'bubble-step',
+      stepName: step.description,
+      stepIndex: i + 1,
+      totalSteps,
+    });
+
+    // Send execute-action to content script and await result
+    let result: { ok: boolean; summary: string; error?: string };
+    try {
+      result = await chrome.tabs.sendMessage(tabId, {
+        action: 'execute-action',
+        actionType: step.action,
+        selector: step.selector,
+        value: step.value,
+        url: step.url,
+        direction: step.direction,
+        description: step.description,
+      });
+    } catch (err) {
+      // Content script unreachable (tab closed, navigated away, etc.)
+      sendToTab(tabId, {
+        action: 'pipeline-error',
+        error: `Step ${i + 1} failed: content script unreachable`,
+      });
+      return;
+    }
+
+    console.log(`[ScreenSense] Step ${i + 1}/${totalSteps} result:`, result);
+
+    if (!result.ok) {
+      // Action failed -- show error and stop
+      sendToTab(tabId, {
+        action: 'pipeline-error',
+        error: `Step ${i + 1} failed: ${result.error || 'Unknown error'}`,
+      });
+      return;
+    }
+
+    // Show action result summary in the bubble (EXT-06: action summary reporting)
+    // Reuse bubble-step with result.summary so the user sees what actually happened
+    // (e.g., "Clicked 'Add to Cart'" or "Typed 'headphones' into #search-input")
+    sendToTab(tabId, {
+      action: 'bubble-step',
+      stepName: result.summary,
+      stepIndex: i + 1,
+      totalSteps,
+    });
+
+    // Brief pause between steps so the user can see the summary
+    // (the rate limiter in action-executor.ts also enforces 300ms minimum)
+    if (i < totalSteps - 1) {
+      await new Promise((resolve) => setTimeout(resolve, 400));
+    }
+  }
+
+  // All steps completed successfully
+  sendToTab(tabId, { action: 'bubble-state', state: 'done' });
+}
+
 async function runPipeline(tabId: number, audioBase64: string, mimeType: string): Promise<void> {
+  console.log('[ScreenSense][SW] runPipeline started — tabId:', tabId, 'audioLen:', audioBase64.length, 'mime:', mimeType);
   try {
     // Capture screenshot (overlay hidden during capture)
     let screenshot: string;
     try {
       screenshot = await captureScreenshot(tabId);
+      console.log('[ScreenSense][SW] Screenshot captured, length:', screenshot.length);
     } catch {
       sendToTab(tabId, { action: 'pipeline-error', error: 'Could not capture screen' });
       currentState = 'idle';
@@ -125,7 +232,9 @@ async function runPipeline(tabId: number, audioBase64: string, mimeType: string)
 
     let transcript: string;
     try {
+      console.log('[ScreenSense][SW] Calling transcribeAudio...');
       transcript = await transcribeAudio(audioBase64, mimeType);
+      console.log('[ScreenSense][SW] Transcription result:', transcript);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Couldn't catch that — try holding a bit longer";
       sendToTab(tabId, { action: 'pipeline-error', error: msg });
@@ -167,7 +276,10 @@ async function runPipeline(tabId: number, audioBase64: string, mimeType: string)
       sendToTab(tabId, { action: 'bubble-state', state: 'answering' });
       sendToTab(tabId, { action: 'bubble-answer-chunk', text: answerText });
       sendToTab(tabId, { action: 'bubble-answer-done', fullText: answerText });
-      sendToTab(tabId, { action: 'bubble-state', state: 'done' });
+      // Short summary for voice: just the first sentence
+      const firstSentence = answerText.split(/\.\s/)[0];
+      const summary = firstSentence.endsWith('.') ? firstSentence : firstSentence + '.';
+      sendToTab(tabId, { action: 'tts-summary', summary });
 
       // Add to conversation history
       const history = getConversation(tabId);
@@ -179,16 +291,12 @@ async function runPipeline(tabId: number, audioBase64: string, mimeType: string)
       }
       sendToTab(tabId, { action: 'conversation-info', info: getConversationInfo(tabId) });
     } else if (taskResult.type === 'steps') {
-      // For steps, log the action plan (execution comes in Phase 9)
+      console.log('[ScreenSense] Executing action plan:', taskResult.actions);
+
+      // Add to conversation history (store the step plan as assistant response)
       const stepsText = taskResult.actions
         ?.map((a, i) => `${i + 1}. ${a.description}`)
         .join('\n') || 'No steps returned';
-      console.log('[ScreenSense] Action plan:', taskResult.actions);
-
-      sendToTab(tabId, { action: 'bubble-state', state: 'planning' });
-      sendToTab(tabId, { action: 'bubble-answer-chunk', text: stepsText });
-      sendToTab(tabId, { action: 'bubble-answer-done', fullText: stepsText });
-      sendToTab(tabId, { action: 'bubble-state', state: 'done' });
 
       const history = getConversation(tabId);
       history.push({ role: 'user', content: transcript });
@@ -198,6 +306,9 @@ async function runPipeline(tabId: number, audioBase64: string, mimeType: string)
         history.shift();
       }
       sendToTab(tabId, { action: 'conversation-info', info: getConversationInfo(tabId) });
+
+      // Execute steps on the page
+      await executeSteps(tabId, taskResult.actions);
     }
   } catch (err) {
     console.error('[ScreenSense] Pipeline error:', err);
@@ -252,7 +363,10 @@ async function runFollowUp(tabId: number, text: string): Promise<void> {
       sendToTab(tabId, { action: 'bubble-state', state: 'answering' });
       sendToTab(tabId, { action: 'bubble-answer-chunk', text: answerText });
       sendToTab(tabId, { action: 'bubble-answer-done', fullText: answerText });
-      sendToTab(tabId, { action: 'bubble-state', state: 'done' });
+      // Short summary for voice: just the first sentence
+      const firstSentence2 = answerText.split(/\.\s/)[0];
+      const summary = firstSentence2.endsWith('.') ? firstSentence2 : firstSentence2 + '.';
+      sendToTab(tabId, { action: 'tts-summary', summary });
 
       const history = getConversation(tabId);
       history.push({ role: 'user', content: text });
@@ -263,15 +377,12 @@ async function runFollowUp(tabId: number, text: string): Promise<void> {
       }
       sendToTab(tabId, { action: 'conversation-info', info: getConversationInfo(tabId) });
     } else if (taskResult.type === 'steps') {
+      console.log('[ScreenSense] Executing follow-up action plan:', taskResult.actions);
+
+      // Add to conversation history (store the step plan as assistant response)
       const stepsText = taskResult.actions
         ?.map((a, i) => `${i + 1}. ${a.description}`)
         .join('\n') || 'No steps returned';
-      console.log('[ScreenSense] Follow-up action plan:', taskResult.actions);
-
-      sendToTab(tabId, { action: 'bubble-state', state: 'planning' });
-      sendToTab(tabId, { action: 'bubble-answer-chunk', text: stepsText });
-      sendToTab(tabId, { action: 'bubble-answer-done', fullText: stepsText });
-      sendToTab(tabId, { action: 'bubble-state', state: 'done' });
 
       const history = getConversation(tabId);
       history.push({ role: 'user', content: text });
@@ -281,6 +392,9 @@ async function runFollowUp(tabId: number, text: string): Promise<void> {
         history.shift();
       }
       sendToTab(tabId, { action: 'conversation-info', info: getConversationInfo(tabId) });
+
+      // Execute steps on the page
+      await executeSteps(tabId, taskResult.actions);
     }
   } catch (err) {
     console.error('[ScreenSense] Follow-up error:', err);
@@ -383,47 +497,97 @@ chrome.runtime.onMessage.addListener(
 
     switch (message.action) {
       case 'shortcut-hold':
+        console.log('[ScreenSense][SW] Received shortcut-hold');
         currentState = 'listening';
         recordingTabId = sender.tab?.id ?? null;
+        swAmpLogged = false;
         updateToolbarIcon('recording');
         broadcastStateChange(currentState);
-        // Start recording via offscreen document
-        ensureOffscreen().then(() => {
-          chrome.runtime.sendMessage({ target: 'offscreen', action: 'start-recording' });
+        // Tell the content script in this tab to show the listening bubble.
+        // This is the reliable path — the custom DOM event only works when the
+        // shortcut fires in the top frame, but this message reaches the top
+        // frame's onMessage listener regardless of which frame sent it.
+        if (recordingTabId) {
+          sendToTab(recordingTabId, { action: 'start-listening' });
+        }
+        // Start recording via offscreen document.
+        // Store the promise so stop-recording can await it (prevents the race
+        // condition where stop arrives before the offscreen doc exists).
+        recordingStartedPromise = ensureOffscreen().then(() => {
+          console.log('[ScreenSense][SW] Sending start-recording to offscreen');
+          return chrome.runtime.sendMessage({ target: 'offscreen', action: 'start-recording' }).catch(() => {});
+        }).then(() => {
+          console.log('[ScreenSense][SW] start-recording message sent successfully');
+        }).catch((err) => {
+          console.error('[ScreenSense][SW] Failed to create offscreen document:', err);
         });
         sendResponse({ ok: true, state: currentState });
         break;
 
-      case 'shortcut-release':
+      case 'shortcut-release': {
+        console.log('[ScreenSense][SW] Received shortcut-release');
         currentState = 'processing';
         broadcastStateChange(currentState);
         pendingTabId = sender.tab?.id ?? recordingTabId;
-        // Stop recording in offscreen — audio comes back via offscreen-recording-complete
-        chrome.runtime.sendMessage({ target: 'offscreen', action: 'stop-recording' });
+        // Tell the content script to transition out of listening state immediately
+        if (pendingTabId) {
+          sendToTab(pendingTabId, { action: 'bubble-state', state: 'transcribing' });
+        }
+        // Wait for the recording to have actually started before sending stop.
+        // This prevents the race condition where stop-recording arrives before
+        // the offscreen document exists or before start-recording was sent.
+        const startPromise = recordingStartedPromise || Promise.resolve();
+        startPromise.then(() => {
+          console.log('[ScreenSense][SW] Sending stop-recording to offscreen');
+          chrome.runtime.sendMessage({ target: 'offscreen', action: 'stop-recording' }).catch((err) => {
+            console.error('[ScreenSense][SW] Failed to send stop-recording:', err);
+          });
+        });
+        recordingStartedPromise = null;
         sendResponse({ ok: true, state: currentState });
         break;
+      }
 
-      case 'offscreen-amplitude' as string:
+      case 'offscreen-amplitude' as string: {
         // Forward amplitude data to the recording tab's content script for waveform
+        const ampData = (message as any).data;
         if (recordingTabId) {
+          if (!swAmpLogged) {
+            console.log('[ScreenSense][SW] forwarding amplitude to tab', recordingTabId, 'dataLen=', ampData?.length, 'first8=', ampData?.slice(0, 8));
+            swAmpLogged = true;
+          }
           chrome.tabs.sendMessage(recordingTabId, {
             action: 'amplitude-data',
-            data: (message as any).data,
-          });
+            data: ampData,
+          }).catch(() => {});
+        } else {
+          console.warn('[ScreenSense][SW] amplitude received but recordingTabId is null');
+        }
+        break;
+      }
+
+      case 'offscreen-ready' as string:
+        console.log('[ScreenSense][SW] Offscreen document script loaded');
+        if (offscreenReadyResolve) {
+          offscreenReadyResolve();
+          offscreenReadyResolve = null;
         }
         break;
 
       case 'offscreen-started' as string:
-        console.log('[ScreenSense] Offscreen recording started');
+        console.log('[ScreenSense][SW] Offscreen recording started');
         break;
 
       case 'offscreen-recording-complete' as string: {
         const msg = message as any;
-        console.log('[ScreenSense] Offscreen recording complete, length:', msg.audioBase64?.length);
+        console.log('[ScreenSense][SW] Offscreen recording complete, audioBase64 length:', msg.audioBase64?.length, 'mimeType:', msg.mimeType, 'pendingTabId:', pendingTabId);
         const tabId = pendingTabId;
         pendingTabId = null;
         if (tabId && msg.audioBase64) {
+          console.log('[ScreenSense][SW] Calling runPipeline with tabId:', tabId);
           runPipeline(tabId, msg.audioBase64, msg.mimeType);
+        } else {
+          console.error('[ScreenSense][SW] Cannot run pipeline: tabId=', tabId, 'hasAudio=', !!msg.audioBase64);
         }
         break;
       }
@@ -437,6 +601,40 @@ chrome.runtime.onMessage.addListener(
         resolveIconState();
         broadcastStateChange('idle');
         break;
+
+      case 'elevenlabs-tts' as string: {
+        // Proxy ElevenLabs TTS through service worker to avoid page CSP blocking
+        const ttsMsg = message as any;
+        fetch(`https://api.elevenlabs.io/v1/text-to-speech/${ttsMsg.voiceId}`, {
+          method: 'POST',
+          headers: {
+            'xi-api-key': ttsMsg.apiKey,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            text: ttsMsg.text,
+            model_id: ttsMsg.modelId,
+            voice_settings: { stability: 0.5, similarity_boost: 0.75 },
+          }),
+        })
+          .then(async (resp) => {
+            if (!resp.ok) {
+              sendResponse({ ok: false, error: `HTTP ${resp.status}` });
+              return;
+            }
+            const blob = await resp.blob();
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              const base64 = (reader.result as string).split(',')[1];
+              sendResponse({ ok: true, audioBase64: base64 });
+            };
+            reader.readAsDataURL(blob);
+          })
+          .catch((err) => {
+            sendResponse({ ok: false, error: String(err) });
+          });
+        return true; // async sendResponse
+      }
 
       case 'capture-screenshot':
         captureScreenshot().then((dataUrl) => {
