@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Core Nova Agent
 status: planning
-stopped_at: Completed 10-01 Tasks 1-2 — awaiting human-verify checkpoint for agent loop end-to-end test
-last_updated: "2026-03-15T10:18:06.781Z"
+stopped_at: Completed 10-01-PLAN.md — agent loop verified end-to-end, ready for 10-02
+last_updated: "2026-03-15T10:23:03.764Z"
 last_activity: 2026-03-14 — Roadmap created for v2.0 Core Nova Agent (phases 6-10)
 progress:
   total_phases: 5
@@ -58,6 +58,7 @@ Progress: [█████░░░░░] 50%
 | Phase 09-dom-automation P09-01 | 2min | 2 tasks | 3 files |
 | Phase 09-dom-automation P09-02 | 10min | 2 tasks | 1 files |
 | Phase 10-agent-loop P10-01 | 5min | 2 tasks | 4 files |
+| Phase 10-agent-loop P10-01 | 15min | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -88,6 +89,9 @@ Recent decisions affecting current work:
 - [Phase 10-agent-loop]: reason_continue() JSON parse fallback wraps plain-text as {type: done} — conservative termination if Nova can't signal more steps
 - [Phase 10-agent-loop]: totalSteps=0 in bubble-step during agent loop signals unknown total in agent mode vs fixed-plan mode
 - [Phase 10-agent-loop]: runAgentLoop replaces executeSteps: observe-act-re-observe pattern with Nova deciding done/steps/answer after each action batch
+- [Phase 10-agent-loop]: reason_continue() JSON parse fallback wraps plain-text as {type: done} — conservative: if Nova can't signal more steps, terminate safely rather than loop indefinitely
+- [Phase 10-agent-loop]: totalSteps=0 in bubble-step during agent loop signals unknown total (agent mode vs fixed-plan mode with known step count)
+- [Phase 10-agent-loop]: 500ms post-action + 800ms post-batch settle times selected to balance responsiveness with DOM/AJAX settle needs
 
 ### Pending Todos
 
@@ -100,6 +104,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-15T10:18:06.780Z
-Stopped at: Completed 10-01 Tasks 1-2 — awaiting human-verify checkpoint for agent loop end-to-end test
+Last session: 2026-03-15T10:23:03.762Z
+Stopped at: Completed 10-01-PLAN.md — agent loop verified end-to-end, ready for 10-02
 Resume file: None
