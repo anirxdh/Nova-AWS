@@ -106,10 +106,10 @@ function broadcastStateChange(state: ExtensionState): void {
 
 async function runPipeline(tabId: number, audioBase64: string, mimeType: string): Promise<void> {
   try {
-    // Capture screenshot
+    // Capture screenshot (overlay hidden during capture)
     let screenshot: string;
     try {
-      screenshot = await captureScreenshot();
+      screenshot = await captureScreenshot(tabId);
     } catch {
       sendToTab(tabId, { action: 'pipeline-error', error: 'Could not capture screen' });
       currentState = 'idle';
@@ -217,7 +217,7 @@ async function runFollowUp(tabId: number, text: string): Promise<void> {
 
     let screenshot: string;
     try {
-      screenshot = await captureScreenshot();
+      screenshot = await captureScreenshot(tabId);
     } catch {
       sendToTab(tabId, { action: 'pipeline-error', error: 'Could not capture screen' });
       return;
