@@ -71,4 +71,7 @@ export type MessageType =
   | { action: 'amplitude-data'; data: number[] }
   | { action: 'start-listening' }
   | { action: 'execute-action'; actionType: string; selector?: string; value?: string; url?: string; direction?: string; description: string }
-  | { action: 'action-result'; ok: boolean; summary: string; error?: string };
+  | { action: 'action-result'; ok: boolean; summary: string; error?: string }
+  | { action: 'bubble-reasoning'; text: string }
+  | { action: 'cancel-agent-loop' }
+  | { action: 'wait-for-dom-stable'; timeout?: number; settleMs?: number };

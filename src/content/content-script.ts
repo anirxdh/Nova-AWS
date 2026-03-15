@@ -39,6 +39,13 @@ bubble.setCallbacks(
   () => sendMessage({ action: 'clear-conversation' })
 );
 
+// Cancel agent loop when Escape is pressed while bubble is visible
+document.addEventListener('keydown', (e: KeyboardEvent) => {
+  if (e.key === 'Escape' && bubble.isVisible()) {
+    chrome.runtime.sendMessage({ action: 'cancel-agent-loop' }).catch(() => {});
+  }
+}, true);
+
 async function onHold(event: Event): Promise<void> {
   const detail = (event as CustomEvent).detail;
   lastCursorX = detail.cursorX;
@@ -71,6 +78,56 @@ async function onRelease(event: Event): Promise<void> {
 
 // Listen for messages from background (pipeline stages, streaming, errors, amplitude)
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  // Handle wait-for-dom-stable — MutationObserver-based page stability check
+  if (message.action === 'wait-for-dom-stable') {
+    const timeout = message.timeout || 2000;
+    const settleMs = message.settleMs || 300;
+
+    const result = new Promise<{ stable: boolean }>((resolve) => {
+      let timer: ReturnType<typeof setTimeout>;
+      let settled = false;
+
+      const observer = new MutationObserver(() => {
+        clearTimeout(timer);
+        timer = setTimeout(() => {
+          settled = true;
+          observer.disconnect();
+          resolve({ stable: true });
+        }, settleMs);
+      });
+
+      observer.observe(document.body, {
+        childList: true, subtree: true, attributes: true, characterData: true
+      });
+
+      // Start the settle timer (in case no mutations happen — page is already stable)
+      timer = setTimeout(() => {
+        if (!settled) {
+          observer.disconnect();
+          resolve({ stable: true });
+        }
+      }, settleMs);
+
+      // Hard timeout
+      setTimeout(() => {
+        if (!settled) {
+          settled = true;
+          observer.disconnect();
+          resolve({ stable: false });
+        }
+      }, timeout);
+    });
+
+    result.then((res) => sendResponse(res));
+    return true;
+  }
+
+  // Handle cancel-agent-loop — service worker sets the cancel flag
+  if (message.action === 'cancel-agent-loop') {
+    sendResponse({ ok: true });
+    return false;
+  }
+
   // Handle execute-action — needs async sendResponse
   if (message.action === 'execute-action') {
     // Execute the DOM action and return result asynchronously

@@ -15,6 +15,7 @@ let pendingTabId: number | null = null;
 let recordingTabId: number | null = null;
 let offscreenReady = false;
 let swAmpLogged = false;
+let agentLoopCancelled = false;
 
 // Track whether the offscreen document has been set up and recording started
 // so that stop-recording waits for start-recording to complete.
@@ -135,6 +136,20 @@ function broadcastStateChange(state: ExtensionState): void {
 
 // ─── Pipeline ───
 
+async function waitForDomStable(tabId: number, timeout = 2000, settleMs = 300): Promise<boolean> {
+  try {
+    const result = await chrome.tabs.sendMessage(tabId, {
+      action: 'wait-for-dom-stable',
+      timeout,
+      settleMs,
+    });
+    return result?.stable ?? false;
+  } catch {
+    // Content script unreachable — page may have navigated
+    return false;
+  }
+}
+
 async function runAgentLoop(
   tabId: number,
   originalCommand: string,
@@ -152,8 +167,18 @@ async function runAgentLoop(
   let currentActions = initialActions;
   let iteration = 0;
 
+  // Reset cancel flag at start of each agent loop run
+  agentLoopCancelled = false;
+
   while (iteration < MAX_AGENT_ITERATIONS) {
     iteration++;
+
+    // Check for user cancellation at start of each outer iteration
+    if (agentLoopCancelled) {
+      agentLoopCancelled = false;
+      sendToTab(tabId, { action: 'bubble-state', state: 'done', label: 'Cancelled' });
+      return;
+    }
 
     // Inner loop: execute each action in the current batch
     for (const step of currentActions) {
@@ -167,6 +192,7 @@ async function runAgentLoop(
 
       // Execute the action in the content script
       let result: { ok: boolean; summary: string; error?: string };
+      let navigationOccurred = false;
       try {
         result = await chrome.tabs.sendMessage(tabId, {
           action: 'execute-action',
@@ -178,13 +204,26 @@ async function runAgentLoop(
           description: step.description,
         });
       } catch {
-        // Content script unreachable (tab closed, navigated away, etc.)
-        sendToTab(tabId, {
-          action: 'pipeline-error',
-          error: `Action failed: content script unreachable`,
-        });
-        return;
+        // Content script may have been destroyed by navigation
+        // Wait for the new page to load, then check if we can continue
+        await new Promise(r => setTimeout(r, 2000));
+        try {
+          await chrome.tabs.sendMessage(tabId, { action: 'scrape-dom' });
+          // Content script is back — record the navigation as a successful action
+          actionHistory.push({ description: step.description, result: 'Page navigated (action triggered navigation)' });
+          navigationOccurred = true;
+          break; // Break inner loop — need to re-observe from the new page
+        } catch {
+          // Still unreachable — truly lost
+          sendToTab(tabId, {
+            action: 'pipeline-error',
+            error: 'Action failed: content script unreachable after navigation',
+          });
+          return;
+        }
       }
+
+      if (navigationOccurred) break;
 
       console.log(`[ScreenSense][loop] iter=${iteration} action="${step.description}" result:`, result);
 
@@ -208,13 +247,20 @@ async function runAgentLoop(
       // Track what we did for Nova's context in the next iteration
       actionHistory.push({ description: step.description, result: result.summary });
 
-      // Brief pause after action to let the page settle (DOM updates, animations, network requests)
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      // Check for cancellation after each action (fast response to Escape)
+      if (agentLoopCancelled) {
+        agentLoopCancelled = false;
+        sendToTab(tabId, { action: 'bubble-state', state: 'done', label: 'Cancelled' });
+        return;
+      }
+
+      // Wait for DOM to settle using MutationObserver (replaces fixed 500ms delay)
+      await waitForDomStable(tabId, 1500, 200);
     }
 
     // After executing all actions in the current batch — re-observe the page
     // Wait for the page to fully settle after last action (navigation, AJAX, animations)
-    await new Promise((resolve) => setTimeout(resolve, 800));
+    await waitForDomStable(tabId, 2500, 300);
 
     // Re-capture screenshot of the updated page
     let newScreenshot: string;
@@ -256,6 +302,11 @@ async function runAgentLoop(
     }
 
     console.log(`[ScreenSense][loop] iter=${iteration} Nova response type:`, continueResult.type);
+
+    // Send reasoning to bubble if present
+    if (continueResult.reasoning) {
+      sendToTab(tabId, { action: 'bubble-reasoning', text: continueResult.reasoning });
+    }
 
     // Evaluate Nova's response
     if (continueResult.type === 'done') {
@@ -363,6 +414,11 @@ async function runPipeline(tabId: number, audioBase64: string, mimeType: string)
       resolveIconState();
       broadcastStateChange('idle');
       return;
+    }
+
+    // Send reasoning to bubble if present
+    if (taskResult.reasoning) {
+      sendToTab(tabId, { action: 'bubble-reasoning', text: taskResult.reasoning });
     }
 
     // Handle response based on type
@@ -741,6 +797,11 @@ chrome.runtime.onMessage.addListener(
         if (sender.tab?.id) {
           runFollowUp(sender.tab.id, (message as any).text);
         }
+        sendResponse({ ok: true });
+        break;
+
+      case 'cancel-agent-loop':
+        agentLoopCancelled = true;
         sendResponse({ ok: true });
         break;
 
