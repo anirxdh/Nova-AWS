@@ -340,19 +340,19 @@ async function runAgentLoop(
 
       if (!result.ok) {
         dbg(`ACTION FAILED: ${result.error} — will retry with fresh DOM on next iteration`);
-        // Don't stop — record the failure and let Nova try a different approach
+        // Show failure briefly in bubble, then continue
+        sendToTab(tabId, {
+          action: 'bubble-step',
+          stepName: `Failed: ${(result.error || 'Unknown').slice(0, 50)} — retrying...`,
+          stepIndex: actionHistory.length + 1,
+          totalSteps: 0,
+        });
+        // Record the failure so Nova knows to try a different approach
         actionHistory.push({
           description: step.description,
           result: `FAILED: ${result.error || 'Unknown error'}. Try a different selector or approach.`,
         });
-        sendToTab(tabId, {
-          action: 'bubble-step',
-          stepName: `Retrying: ${step.description}`,
-          stepIndex: actionHistory.length,
-          totalSteps: 0,
-        });
-        // Break inner loop to re-observe and ask Nova for a different approach
-        break;
+        // Don't break — fall through to re-observe with fresh DOM
       }
 
       // Show action result summary in the bubble (EXT-06: action summary reporting)
