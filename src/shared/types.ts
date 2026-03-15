@@ -68,4 +68,7 @@ export type MessageType =
   | { action: 'bubble-answer-chunk'; text: string }
   | { action: 'bubble-answer-done'; fullText: string }
   | { action: 'bubble-step'; stepName: string; stepIndex: number; totalSteps: number }
-  | { action: 'amplitude-data'; data: number[] };
+  | { action: 'amplitude-data'; data: number[] }
+  | { action: 'start-listening' }
+  | { action: 'execute-action'; actionType: string; selector?: string; value?: string; url?: string; direction?: string; description: string }
+  | { action: 'action-result'; ok: boolean; summary: string; error?: string };
