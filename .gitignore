@@ -14,3 +14,5 @@ src/global-hack-final.mp4
 *.mov
 landing/*.mov
 landing/*.mp4
+.agents/
+.claude/
