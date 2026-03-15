@@ -1,0 +1,1232 @@
+import { renderMarkdown } from './markdown';
+import { BubbleState, ConversationInfo, DisplayMode } from '../shared/types';
+import { speak, stop as stopTts, isTtsEnabled, setTtsEnabled, isSpeaking } from './tts';
+import { getSettings } from '../shared/storage';
+
+// ---------------------------------------------------------------------------
+// SVG icons
+// ---------------------------------------------------------------------------
+
+const WAVE_ICON_SVG = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect x="1" y="6" width="2" height="4" rx="1" fill="currentColor" opacity="0.7"><animate attributeName="height" values="4;8;4" dur="0.8s" repeatCount="indefinite"/><animate attributeName="y" values="6;4;6" dur="0.8s" repeatCount="indefinite"/></rect>
+  <rect x="4.5" y="4" width="2" height="8" rx="1" fill="currentColor" opacity="0.85"><animate attributeName="height" values="8;12;8" dur="0.6s" repeatCount="indefinite"/><animate attributeName="y" values="4;2;4" dur="0.6s" repeatCount="indefinite"/></rect>
+  <rect x="8" y="5" width="2" height="6" rx="1" fill="currentColor"><animate attributeName="height" values="6;10;6" dur="0.7s" repeatCount="indefinite"/><animate attributeName="y" values="5;3;5" dur="0.7s" repeatCount="indefinite"/></rect>
+  <rect x="11.5" y="6" width="2" height="4" rx="1" fill="currentColor" opacity="0.7"><animate attributeName="height" values="4;7;4" dur="0.9s" repeatCount="indefinite"/><animate attributeName="y" values="6;4.5;6" dur="0.9s" repeatCount="indefinite"/></rect>
+</svg>`;
+
+const WAVE_ICON_STATIC = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect x="1" y="6" width="2" height="4" rx="1" fill="currentColor" opacity="0.4"/>
+  <rect x="4.5" y="4" width="2" height="8" rx="1" fill="currentColor" opacity="0.4"/>
+  <rect x="8" y="5" width="2" height="6" rx="1" fill="currentColor" opacity="0.4"/>
+  <rect x="11.5" y="6" width="2" height="4" rx="1" fill="currentColor" opacity="0.4"/>
+</svg>`;
+
+// ---------------------------------------------------------------------------
+// Inline styles (Shadow DOM — no external CSS file)
+// ---------------------------------------------------------------------------
+
+const BUBBLE_STYLES = `
+/* ─── Host bubble element ─── */
+.screensense-bubble {
+  position: fixed;
+  z-index: 2147483647;
+  padding: 14px 18px;
+  border-radius: 14px;
+  background: rgba(20, 20, 20, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.9);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  pointer-events: none;
+  user-select: text;
+  opacity: 0;
+  transform: scale(0.95);
+  transition: opacity 0.18s ease, transform 0.18s ease, width 0.22s ease;
+  width: 180px;
+  box-sizing: border-box;
+}
+
+.screensense-bubble.visible {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.screensense-bubble.fade-out {
+  opacity: 0;
+  transform: scale(0.95);
+}
+
+/* Expanded width for answering state */
+.screensense-bubble.state-answering {
+  width: 380px;
+  max-height: 360px;
+  overflow-y: auto;
+  pointer-events: auto;
+}
+
+/* Pointer events on for error/done so user can interact if needed */
+.screensense-bubble.state-error {
+  pointer-events: auto;
+}
+
+/* ─── Status states (transcribing / understanding / planning) ─── */
+.screensense-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.screensense-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(165, 180, 252, 0.85);
+  flex-shrink: 0;
+  animation: bubble-pulse 1.2s ease-in-out infinite;
+}
+
+/* ─── Listening waveform ─── */
+.screensense-waveform {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 24px;
+  justify-content: center;
+}
+
+.screensense-waveform .wave-bar {
+  width: 3px;
+  min-height: 2px;
+  max-height: 24px;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 1.5px;
+  transition: height 0.05s ease-out;
+}
+
+.screensense-listening-label {
+  text-align: center;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
+  margin-top: 6px;
+  letter-spacing: 0.03em;
+}
+
+/* ─── Executing step indicator ─── */
+.screensense-step {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.screensense-step-count {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.35);
+  margin-bottom: 4px;
+}
+
+.screensense-step-name {
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.88);
+}
+
+/* ─── Answering: response area ─── */
+.screensense-response strong {
+  font-weight: 600;
+  color: rgba(255, 255, 255, 1);
+}
+
+.screensense-response code {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+  font-size: 13px;
+}
+
+.screensense-response ul {
+  margin: 4px 0;
+  padding-left: 18px;
+}
+
+.screensense-response li {
+  margin: 2px 0;
+}
+
+/* ─── Chat history (previous turns) ─── */
+.screensense-history {
+  display: none;
+  margin-bottom: 10px;
+}
+
+.screensense-history.visible {
+  display: block;
+}
+
+.screensense-history-turn {
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.screensense-history-q {
+  font-size: 12px;
+  color: rgba(165, 180, 252, 0.6);
+  font-style: italic;
+  margin-bottom: 4px;
+}
+
+.screensense-history-a {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.screensense-history-a strong {
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.screensense-history-a code {
+  background: rgba(255, 255, 255, 0.08);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-family: 'SF Mono', Monaco, monospace;
+  font-size: 12px;
+}
+
+.screensense-history-a ul {
+  margin: 2px 0;
+  padding-left: 16px;
+}
+
+.screensense-history-a li {
+  margin: 1px 0;
+}
+
+/* ─── Transcript (current user question, shown during answering) ─── */
+.screensense-transcript {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.45);
+  margin-bottom: 12px;
+  font-style: italic;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 8px;
+  display: none;
+}
+
+.screensense-transcript.visible {
+  display: block;
+}
+
+/* ─── Error state ─── */
+.screensense-error {
+  color: rgba(255, 120, 120, 0.9);
+  font-size: 13px;
+}
+
+/* ─── Done state ─── */
+.screensense-done {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: rgba(165, 252, 180, 0.9);
+}
+
+.screensense-done-check {
+  font-size: 15px;
+}
+
+/* ─── Follow-up input ─── */
+.screensense-followup {
+  display: none;
+  margin-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 10px;
+}
+
+.screensense-followup.visible {
+  display: block;
+}
+
+.screensense-followup-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.screensense-followup-input {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.9);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.screensense-followup-input::placeholder {
+  color: rgba(255, 255, 255, 0.25);
+}
+
+.screensense-followup-input:focus {
+  border-color: rgba(129, 140, 248, 0.5);
+}
+
+.screensense-followup-send {
+  background: rgba(129, 140, 248, 0.2);
+  border: 1px solid rgba(129, 140, 248, 0.3);
+  border-radius: 8px;
+  padding: 6px 10px;
+  color: rgba(165, 180, 252, 0.9);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.screensense-followup-send:hover {
+  background: rgba(129, 140, 248, 0.3);
+  color: #c4b5fd;
+}
+
+/* ─── Context bar (TTS + turns + clear) ─── */
+.screensense-context-bar {
+  display: none;
+  margin-top: 8px;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.screensense-context-bar.visible {
+  display: flex;
+}
+
+.screensense-context-track {
+  flex: 1;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.screensense-context-fill {
+  height: 100%;
+  background: linear-gradient(90deg, rgba(129, 140, 248, 0.6), rgba(196, 181, 253, 0.6));
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.screensense-context-label {
+  white-space: nowrap;
+  min-width: 28px;
+  text-align: right;
+}
+
+.screensense-clear-btn {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.25);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.screensense-clear-btn:hover {
+  color: rgba(255, 120, 120, 0.7);
+  background: rgba(255, 120, 120, 0.08);
+}
+
+.screensense-tts-btn {
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.25);
+  cursor: pointer;
+  padding: 3px 5px;
+  border-radius: 5px;
+  transition: all 0.15s ease;
+  line-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.screensense-tts-btn.active {
+  color: rgba(129, 140, 248, 0.9);
+  border-color: rgba(129, 140, 248, 0.3);
+  background: rgba(129, 140, 248, 0.08);
+}
+
+.screensense-tts-btn:hover {
+  color: rgba(165, 180, 252, 0.9);
+  border-color: rgba(129, 140, 248, 0.4);
+}
+
+/* ─── Audio-only speaking waveform ─── */
+.screensense-speaking-wave {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 8px 0;
+}
+
+.screensense-speaking-wave .wave-bar {
+  width: 4px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, rgba(165, 180, 252, 0.9), rgba(129, 140, 248, 0.6));
+  animation: bubble-wave-bar 1.2s ease-in-out infinite;
+}
+
+.screensense-speaking-wave .wave-bar:nth-child(1)  { height: 8px;  animation-delay: 0s; }
+.screensense-speaking-wave .wave-bar:nth-child(2)  { height: 14px; animation-delay: 0.1s; }
+.screensense-speaking-wave .wave-bar:nth-child(3)  { height: 20px; animation-delay: 0.15s; }
+.screensense-speaking-wave .wave-bar:nth-child(4)  { height: 26px; animation-delay: 0.2s; }
+.screensense-speaking-wave .wave-bar:nth-child(5)  { height: 32px; animation-delay: 0.25s; }
+.screensense-speaking-wave .wave-bar:nth-child(6)  { height: 28px; animation-delay: 0.3s; }
+.screensense-speaking-wave .wave-bar:nth-child(7)  { height: 34px; animation-delay: 0.35s; }
+.screensense-speaking-wave .wave-bar:nth-child(8)  { height: 24px; animation-delay: 0.4s; }
+.screensense-speaking-wave .wave-bar:nth-child(9)  { height: 30px; animation-delay: 0.45s; }
+.screensense-speaking-wave .wave-bar:nth-child(10) { height: 20px; animation-delay: 0.5s; }
+.screensense-speaking-wave .wave-bar:nth-child(11) { height: 26px; animation-delay: 0.55s; }
+.screensense-speaking-wave .wave-bar:nth-child(12) { height: 16px; animation-delay: 0.6s; }
+.screensense-speaking-wave .wave-bar:nth-child(13) { height: 10px; animation-delay: 0.65s; }
+
+.screensense-speaking-label {
+  text-align: center;
+  font-size: 11px;
+  color: rgba(165, 180, 252, 0.5);
+  margin-top: 4px;
+  letter-spacing: 0.05em;
+}
+
+/* ─── Scrollbar styling (for answering state) ─── */
+.screensense-bubble::-webkit-scrollbar {
+  width: 4px;
+}
+
+.screensense-bubble::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.screensense-bubble::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 2px;
+}
+
+.screensense-bubble::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* ─── Keyframe animations ─── */
+@keyframes bubble-pulse {
+  0%, 100% {
+    opacity: 0.4;
+    transform: scale(0.9);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+}
+
+@keyframes bubble-wave-bar {
+  0%, 100% { transform: scaleY(0.4); opacity: 0.5; }
+  50%      { transform: scaleY(1);   opacity: 1; }
+}
+`;
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const BAR_COUNT = 16;
+const MIN_HEIGHT = 2;
+const MAX_HEIGHT = 24;
+const CURSOR_OFFSET_Y = 20;
+const BUBBLE_WIDTH_STATUS = 180;
+const BUBBLE_WIDTH_ANSWER = 380;
+const BUBBLE_MAX_HEIGHT_ANSWER = 360;
+
+// ---------------------------------------------------------------------------
+// CursorBubble class
+// ---------------------------------------------------------------------------
+
+export class CursorBubble {
+  private container: HTMLDivElement | null = null;
+  private shadowRoot: ShadowRoot | null = null;
+  private bubbleEl: HTMLDivElement | null = null;
+
+  // Sub-elements built per state
+  private historyEl: HTMLDivElement | null = null;
+  private transcriptEl: HTMLDivElement | null = null;
+  private responseEl: HTMLDivElement | null = null;
+  private followupEl: HTMLDivElement | null = null;
+  private followupInput: HTMLInputElement | null = null;
+  private contextBar: HTMLDivElement | null = null;
+  private contextFill: HTMLDivElement | null = null;
+  private contextLabel: HTMLSpanElement | null = null;
+  private ttsBtn: HTMLButtonElement | null = null;
+  private waveformBars: HTMLDivElement[] = [];
+
+  // State machine
+  private currentState: BubbleState = 'idle';
+  private visible = false;
+  private tracking = false;
+
+  // Accumulated content (answer streaming)
+  private accumulatedText = '';
+  private currentTranscript = '';
+
+  // Timers
+  private autoDismissTimer: ReturnType<typeof setTimeout> | null = null;
+  private ttsPollTimer: ReturnType<typeof setInterval> | null = null;
+
+  // Event handlers (stored for removal)
+  private escapeHandler: ((e: KeyboardEvent) => void) | null = null;
+  private mouseMoveHandler: ((e: MouseEvent) => void) | null = null;
+
+  // Callbacks registered by content script
+  private onFollowUp: ((text: string) => void) | null = null;
+  private onClear: (() => void) | null = null;
+
+  // Display mode
+  private displayMode: DisplayMode = 'both';
+
+  // ---------------------------------------------------------------------------
+  // Public API
+  // ---------------------------------------------------------------------------
+
+  /** Register callbacks for follow-up input and conversation clear. */
+  setCallbacks(onFollowUp: (text: string) => void, onClear: () => void): void {
+    this.onFollowUp = onFollowUp;
+    this.onClear = onClear;
+  }
+
+  /**
+   * Create the Shadow DOM host, attach to document.body, and start mouse tracking.
+   * Call setState() immediately after to set the initial state.
+   */
+  show(cursorX: number, cursorY: number): void {
+    if (this.visible) {
+      this.dismissImmediate();
+    }
+
+    // Read display mode asynchronously (non-blocking)
+    getSettings().then(settings => {
+      this.displayMode = settings.displayMode;
+    });
+
+    // Host container: fixed, zero-size, max z-index, pointer-events none
+    this.container = document.createElement('div');
+    this.container.id = 'screensense-bubble-host';
+    this.container.style.cssText =
+      'position:fixed;top:0;left:0;width:0;height:0;z-index:2147483647;pointer-events:none;';
+
+    // Closed Shadow DOM for style isolation
+    this.shadowRoot = this.container.attachShadow({ mode: 'closed' });
+
+    const styleEl = document.createElement('style');
+    styleEl.textContent = BUBBLE_STYLES;
+    this.shadowRoot.appendChild(styleEl);
+
+    // Bubble element
+    this.bubbleEl = document.createElement('div');
+    this.bubbleEl.className = 'screensense-bubble';
+    this.positionBubble(cursorX, cursorY, BUBBLE_WIDTH_STATUS);
+
+    this.shadowRoot.appendChild(this.bubbleEl);
+    document.body.appendChild(this.container);
+
+    // Entrance animation
+    requestAnimationFrame(() => {
+      if (this.bubbleEl) {
+        this.bubbleEl.classList.add('visible');
+      }
+    });
+
+    // Escape key handler (capture phase)
+    this.escapeHandler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (this.shadowRoot?.activeElement === this.followupInput) return;
+        e.preventDefault();
+        e.stopPropagation();
+        this.dismiss();
+      }
+    };
+    document.addEventListener('keydown', this.escapeHandler, true);
+
+    this.startTracking();
+    this.visible = true;
+  }
+
+  /**
+   * Transition bubble to a new state.
+   * Clears previous state content and renders the new state.
+   * If state is 'idle', calls dismiss().
+   */
+  setState(state: BubbleState, label?: string): void {
+    if (state === 'idle') {
+      this.dismiss();
+      return;
+    }
+
+    if (!this.bubbleEl) return;
+
+    this.currentState = state;
+
+    // Clear state-specific classes
+    this.bubbleEl.classList.remove(
+      'state-listening', 'state-transcribing', 'state-understanding',
+      'state-planning', 'state-executing', 'state-answering',
+      'state-error', 'state-done'
+    );
+    this.bubbleEl.classList.add(`state-${state}`);
+
+    // Cancel any pending auto-dismiss from a previous state (unless we're in a state that sets its own)
+    if (state !== 'error' && state !== 'done') {
+      this.clearAutoDismiss();
+    }
+
+    // Re-render content area for the new state
+    // Preserve history, transcript, followup for 'answering' state
+    if (state === 'answering') {
+      this.renderAnsweringState();
+    } else {
+      this.clearContentArea();
+      this.renderState(state, label);
+    }
+  }
+
+  /**
+   * Update waveform bar heights from microphone frequency data.
+   * Only meaningful in 'listening' state.
+   */
+  updateAmplitude(frequencyData: Uint8Array): void {
+    if (this.currentState !== 'listening' || this.waveformBars.length === 0) return;
+
+    const binCount = frequencyData.length;
+    const step = Math.floor(binCount / BAR_COUNT);
+
+    for (let i = 0; i < BAR_COUNT; i++) {
+      const index = Math.min(i * step, binCount - 1);
+      const value = frequencyData[index];
+      const height = MIN_HEIGHT + (value / 255) * (MAX_HEIGHT - MIN_HEIGHT);
+      this.waveformBars[i].style.height = `${height}px`;
+    }
+  }
+
+  /**
+   * Update step display during 'executing' state.
+   */
+  setStep(name: string, index: number, total: number): void {
+    if (!this.bubbleEl) return;
+
+    if (this.currentState !== 'executing') {
+      this.setState('executing');
+    }
+
+    const countEl = this.bubbleEl.querySelector('.screensense-step-count');
+    const nameEl = this.bubbleEl.querySelector('.screensense-step-name');
+    if (countEl) countEl.textContent = `Step ${index}/${total}`;
+    if (nameEl) nameEl.textContent = name;
+  }
+
+  /**
+   * Append a streaming text chunk (answering state).
+   * Automatically transitions to 'answering' if not already in that state.
+   */
+  appendChunk(text: string): void {
+    if (!this.responseEl) {
+      // Transition to answering if not already
+      if (this.currentState !== 'answering') {
+        this.setState('answering');
+      }
+    }
+
+    if (!this.responseEl) return;
+
+    // Lock position once content starts streaming
+    if (!this.accumulatedText && this.tracking) {
+      this.stopTracking();
+    }
+
+    this.accumulatedText += text;
+
+    // In audio-only mode, don't render text
+    if (this.displayMode === 'audio-only') return;
+
+    this.responseEl.innerHTML = renderMarkdown(this.accumulatedText);
+
+    // Auto-scroll to bottom
+    if (this.bubbleEl) {
+      const el = this.bubbleEl;
+      const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+      if (isNearBottom) {
+        el.scrollTop = el.scrollHeight;
+      }
+    }
+  }
+
+  /**
+   * Signal that answer streaming is complete.
+   * Shows follow-up input (unless audio-only) and optionally shows speaking waveform.
+   */
+  onAnswerDone(): void {
+    if (this.displayMode === 'audio-only') {
+      // Show speaking waveform instead of text
+      if (this.responseEl) {
+        const bars = Array.from({ length: 13 }, () => '<div class="wave-bar"></div>').join('');
+        this.responseEl.innerHTML =
+          `<div class="screensense-speaking-wave">${bars}</div>` +
+          `<div class="screensense-speaking-label">Preparing audio...</div>`;
+      }
+      if (this.transcriptEl) this.transcriptEl.style.display = 'none';
+      if (this.historyEl) this.historyEl.style.display = 'none';
+      return;
+    }
+
+    if (this.followupEl) {
+      this.followupEl.classList.add('visible');
+    }
+    if (this.contextBar) {
+      this.contextBar.classList.add('visible');
+    }
+  }
+
+  /**
+   * Trigger TTS for the answer summary.
+   * In audio-only mode, shows speaking waveform and auto-dismisses when TTS finishes.
+   */
+  speakSummary(summary: string): void {
+    if (this.displayMode === 'text-only') return;
+    speak(summary);
+
+    if (this.displayMode === 'audio-only') {
+      if (this.responseEl) {
+        const label = this.responseEl.querySelector('.screensense-speaking-label');
+        if (label) label.textContent = 'Speaking...';
+      }
+
+      this.ttsPollTimer = setInterval(() => {
+        if (!isSpeaking()) {
+          if (this.ttsPollTimer) {
+            clearInterval(this.ttsPollTimer);
+            this.ttsPollTimer = null;
+          }
+          this.dismiss();
+        }
+      }, 500);
+    }
+  }
+
+  /** Show an error message and auto-dismiss after 5 seconds. */
+  showError(error: string): void {
+    this.setState('error', error);
+    this.autoDismissTimer = setTimeout(() => {
+      this.dismiss();
+    }, 5000);
+  }
+
+  /** Fade out and remove from DOM. Stops mouse tracking and clears all timers. */
+  dismiss(): void {
+    if (!this.visible || !this.bubbleEl) {
+      this.cleanup();
+      return;
+    }
+
+    this.bubbleEl.classList.add('fade-out');
+    this.bubbleEl.classList.remove('visible');
+
+    setTimeout(() => {
+      this.cleanup();
+    }, 180);
+
+    this.visible = false;
+  }
+
+  /** Returns whether the bubble is currently shown. */
+  isVisible(): boolean {
+    return this.visible;
+  }
+
+  /** Temporarily hide for screenshot capture (no animation). */
+  hideForScreenshot(): void {
+    if (this.container) {
+      this.container.style.display = 'none';
+    }
+  }
+
+  /** Re-show after screenshot capture. */
+  showAfterScreenshot(): void {
+    if (this.container) {
+      this.container.style.display = '';
+    }
+  }
+
+  /** Update context bar turns indicator. */
+  updateConversationInfo(info: ConversationInfo): void {
+    const pct = info.maxTurns > 0 ? Math.round((info.turns / info.maxTurns) * 100) : 0;
+    if (this.contextFill) {
+      this.contextFill.style.width = `${pct}%`;
+    }
+    if (this.contextLabel) {
+      this.contextLabel.textContent = `${pct}%`;
+    }
+  }
+
+  /**
+   * Move current Q&A into history, clear response area, restart mouse tracking.
+   * Called before a follow-up question is processed.
+   */
+  prepareForFollowUp(): void {
+    stopTts();
+    this.startTracking();
+
+    // Move current Q&A into history
+    if (this.accumulatedText && this.historyEl) {
+      const turnEl = document.createElement('div');
+      turnEl.className = 'screensense-history-turn';
+
+      if (this.currentTranscript) {
+        const qEl = document.createElement('div');
+        qEl.className = 'screensense-history-q';
+        qEl.textContent = `"${this.currentTranscript}"`;
+        turnEl.appendChild(qEl);
+      }
+
+      const aEl = document.createElement('div');
+      aEl.className = 'screensense-history-a';
+      aEl.innerHTML = renderMarkdown(this.accumulatedText);
+      turnEl.appendChild(aEl);
+
+      this.historyEl.appendChild(turnEl);
+      this.historyEl.classList.add('visible');
+    }
+
+    // Hide follow-up input during processing
+    if (this.followupEl) {
+      this.followupEl.classList.remove('visible');
+    }
+
+    // Clear response state
+    this.accumulatedText = '';
+    this.currentTranscript = '';
+    if (this.responseEl) {
+      this.responseEl.innerHTML = '';
+    }
+    if (this.transcriptEl) {
+      this.transcriptEl.textContent = '';
+      this.transcriptEl.classList.remove('visible');
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Private: state rendering
+  // ---------------------------------------------------------------------------
+
+  private renderState(state: BubbleState, label?: string): void {
+    if (!this.bubbleEl) return;
+
+    switch (state) {
+      case 'listening':
+        this.renderListening();
+        break;
+      case 'transcribing':
+        this.renderStatus('Transcribing...');
+        break;
+      case 'understanding':
+        this.renderStatus('Understanding...');
+        break;
+      case 'planning':
+        this.renderStatus('Planning...');
+        break;
+      case 'executing':
+        this.renderExecuting(label);
+        break;
+      case 'error':
+        this.renderError(label ?? 'An error occurred');
+        break;
+      case 'done':
+        this.renderDone();
+        break;
+    }
+  }
+
+  private renderListening(): void {
+    if (!this.bubbleEl) return;
+
+    // Waveform container
+    const waveformEl = document.createElement('div');
+    waveformEl.className = 'screensense-waveform';
+
+    this.waveformBars = [];
+    for (let i = 0; i < BAR_COUNT; i++) {
+      const bar = document.createElement('div');
+      bar.className = 'wave-bar';
+      waveformEl.appendChild(bar);
+      this.waveformBars.push(bar);
+    }
+
+    const labelEl = document.createElement('div');
+    labelEl.className = 'screensense-listening-label';
+    labelEl.textContent = 'Listening...';
+
+    this.bubbleEl.appendChild(waveformEl);
+    this.bubbleEl.appendChild(labelEl);
+  }
+
+  private renderStatus(text: string): void {
+    if (!this.bubbleEl) return;
+
+    const statusEl = document.createElement('div');
+    statusEl.className = 'screensense-status';
+
+    const dotEl = document.createElement('div');
+    dotEl.className = 'screensense-status-dot';
+
+    const textEl = document.createElement('span');
+    textEl.textContent = text;
+
+    statusEl.appendChild(dotEl);
+    statusEl.appendChild(textEl);
+    this.bubbleEl.appendChild(statusEl);
+  }
+
+  private renderExecuting(label?: string): void {
+    if (!this.bubbleEl) return;
+
+    const stepEl = document.createElement('div');
+    stepEl.className = 'screensense-step';
+
+    const countEl = document.createElement('div');
+    countEl.className = 'screensense-step-count';
+    countEl.textContent = label ? '' : 'Executing...';
+
+    const nameEl = document.createElement('div');
+    nameEl.className = 'screensense-step-name';
+    nameEl.textContent = label ?? '';
+
+    stepEl.appendChild(countEl);
+    stepEl.appendChild(nameEl);
+    this.bubbleEl.appendChild(stepEl);
+  }
+
+  private renderError(error: string): void {
+    if (!this.bubbleEl) return;
+
+    const errorEl = document.createElement('div');
+    errorEl.className = 'screensense-error';
+    errorEl.textContent = error;
+    this.bubbleEl.appendChild(errorEl);
+  }
+
+  private renderDone(): void {
+    if (!this.bubbleEl) return;
+
+    const doneEl = document.createElement('div');
+    doneEl.className = 'screensense-done';
+
+    const checkEl = document.createElement('span');
+    checkEl.className = 'screensense-done-check';
+    checkEl.textContent = '\u2713';
+
+    const textEl = document.createElement('span');
+    textEl.textContent = 'Done';
+
+    doneEl.appendChild(checkEl);
+    doneEl.appendChild(textEl);
+    this.bubbleEl.appendChild(doneEl);
+
+    // Auto-dismiss after 2 seconds
+    this.autoDismissTimer = setTimeout(() => {
+      this.dismiss();
+    }, 2000);
+  }
+
+  private renderAnsweringState(): void {
+    if (!this.bubbleEl) return;
+
+    // Clear non-persistent content (not history)
+    if (this.historyEl) {
+      // Keep history — remove everything else
+      const children = Array.from(this.bubbleEl.childNodes);
+      for (const child of children) {
+        if (child !== this.historyEl) {
+          this.bubbleEl.removeChild(child);
+        }
+      }
+    } else {
+      this.bubbleEl.innerHTML = '';
+    }
+
+    // Adjust bubble width for answer content
+    this.bubbleEl.style.maxHeight = `${BUBBLE_MAX_HEIGHT_ANSWER}px`;
+
+    // Build history container (if not already present)
+    if (!this.historyEl) {
+      this.historyEl = document.createElement('div');
+      this.historyEl.className = 'screensense-history';
+      this.bubbleEl.appendChild(this.historyEl);
+    }
+
+    // Transcript (current user question)
+    this.transcriptEl = document.createElement('div');
+    this.transcriptEl.className = 'screensense-transcript';
+    if (this.currentTranscript) {
+      this.transcriptEl.textContent = `"${this.currentTranscript}"`;
+      this.transcriptEl.classList.add('visible');
+    }
+    this.bubbleEl.appendChild(this.transcriptEl);
+
+    // Response area
+    this.responseEl = document.createElement('div');
+    this.responseEl.className = 'screensense-response';
+    if (this.accumulatedText) {
+      this.responseEl.innerHTML = renderMarkdown(this.accumulatedText);
+    }
+    this.bubbleEl.appendChild(this.responseEl);
+
+    // Follow-up input section
+    this.followupEl = document.createElement('div');
+    this.followupEl.className = 'screensense-followup';
+
+    const followupRow = document.createElement('div');
+    followupRow.className = 'screensense-followup-row';
+
+    this.followupInput = document.createElement('input');
+    this.followupInput.type = 'text';
+    this.followupInput.className = 'screensense-followup-input';
+    this.followupInput.placeholder = 'Ask a follow-up...';
+    this.followupInput.addEventListener('keydown', (e: KeyboardEvent) => {
+      e.stopPropagation();
+      if (e.key === 'Enter' && this.followupInput?.value.trim()) {
+        e.preventDefault();
+        this.sendFollowUp();
+      }
+      if (e.key === 'Escape') {
+        this.followupInput?.blur();
+      }
+    }, true);
+    this.followupInput.addEventListener('keyup', (e: KeyboardEvent) => {
+      e.stopPropagation();
+    }, true);
+
+    const sendBtn = document.createElement('button');
+    sendBtn.className = 'screensense-followup-send';
+    sendBtn.textContent = 'Send';
+    sendBtn.addEventListener('click', () => this.sendFollowUp());
+
+    followupRow.appendChild(this.followupInput);
+    followupRow.appendChild(sendBtn);
+    this.followupEl.appendChild(followupRow);
+
+    // Context bar (TTS + turns + clear)
+    this.contextBar = document.createElement('div');
+    this.contextBar.className = 'screensense-context-bar';
+
+    this.ttsBtn = document.createElement('button');
+    this.ttsBtn.className = `screensense-tts-btn${isTtsEnabled() ? ' active' : ''}`;
+    this.ttsBtn.innerHTML = isTtsEnabled() ? WAVE_ICON_SVG : WAVE_ICON_STATIC;
+    this.ttsBtn.title = 'Toggle read aloud';
+    this.ttsBtn.addEventListener('click', () => {
+      const newState = !isTtsEnabled();
+      setTtsEnabled(newState);
+      if (this.ttsBtn) {
+        this.ttsBtn.classList.toggle('active', newState);
+        this.ttsBtn.innerHTML = newState ? WAVE_ICON_SVG : WAVE_ICON_STATIC;
+      }
+    });
+
+    const contextTrack = document.createElement('div');
+    contextTrack.className = 'screensense-context-track';
+    this.contextFill = document.createElement('div');
+    this.contextFill.className = 'screensense-context-fill';
+    this.contextFill.style.width = '0%';
+    contextTrack.appendChild(this.contextFill);
+
+    this.contextLabel = document.createElement('span');
+    this.contextLabel.className = 'screensense-context-label';
+    this.contextLabel.textContent = '0%';
+
+    const clearBtn = document.createElement('button');
+    clearBtn.className = 'screensense-clear-btn';
+    clearBtn.textContent = 'Clear';
+    clearBtn.addEventListener('click', () => {
+      if (this.onClear) {
+        this.onClear();
+        this.updateConversationInfo({ turns: 0, maxTurns: 20 });
+        if (this.historyEl) {
+          this.historyEl.innerHTML = '';
+          this.historyEl.classList.remove('visible');
+        }
+      }
+    });
+
+    this.contextBar.appendChild(this.ttsBtn);
+    this.contextBar.appendChild(contextTrack);
+    this.contextBar.appendChild(this.contextLabel);
+    this.contextBar.appendChild(clearBtn);
+    this.followupEl.appendChild(this.contextBar);
+
+    this.bubbleEl.appendChild(this.followupEl);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Private: helpers
+  // ---------------------------------------------------------------------------
+
+  private clearContentArea(): void {
+    if (!this.bubbleEl) return;
+    this.bubbleEl.innerHTML = '';
+    this.bubbleEl.style.maxHeight = '';
+    this.waveformBars = [];
+
+    // Reset sub-element refs
+    this.historyEl = null;
+    this.transcriptEl = null;
+    this.responseEl = null;
+    this.followupEl = null;
+    this.followupInput = null;
+    this.contextBar = null;
+    this.contextFill = null;
+    this.contextLabel = null;
+    this.ttsBtn = null;
+  }
+
+  private sendFollowUp(): void {
+    if (!this.followupInput) return;
+    const text = this.followupInput.value.trim();
+    if (!text) return;
+
+    this.followupInput.value = '';
+    this.clearAutoDismiss();
+
+    this.prepareForFollowUp();
+
+    if (this.onFollowUp) {
+      this.onFollowUp(text);
+    }
+  }
+
+  private clearAutoDismiss(): void {
+    if (this.autoDismissTimer) {
+      clearTimeout(this.autoDismissTimer);
+      this.autoDismissTimer = null;
+    }
+  }
+
+  private startTracking(): void {
+    if (this.tracking) return;
+    this.tracking = true;
+    this.mouseMoveHandler = (e: MouseEvent) => {
+      const width = this.currentState === 'answering' ? BUBBLE_WIDTH_ANSWER : BUBBLE_WIDTH_STATUS;
+      this.positionBubble(e.clientX, e.clientY, width);
+    };
+    document.addEventListener('mousemove', this.mouseMoveHandler, { passive: true });
+  }
+
+  private stopTracking(): void {
+    if (!this.tracking) return;
+    this.tracking = false;
+    if (this.mouseMoveHandler) {
+      document.removeEventListener('mousemove', this.mouseMoveHandler);
+      this.mouseMoveHandler = null;
+    }
+  }
+
+  /**
+   * Position the bubble near the cursor with edge detection.
+   * Reuses the same logic as overlay.ts positionOverlay().
+   */
+  private positionBubble(cursorX: number, cursorY: number, bubbleWidth: number): void {
+    if (!this.bubbleEl) return;
+
+    const bubbleMaxHeight = this.currentState === 'answering' ? BUBBLE_MAX_HEIGHT_ANSWER : 120;
+    const offset = CURSOR_OFFSET_Y;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+
+    let left: string;
+    let translateX = '';
+    if (cursorX < bubbleWidth / 2 + 10) {
+      left = `${Math.max(10, cursorX)}px`;
+    } else if (cursorX > vw - bubbleWidth / 2 - 10) {
+      left = `${Math.min(vw - 10, cursorX)}px`;
+      translateX = 'translateX(-100%)';
+    } else {
+      left = `${cursorX}px`;
+      translateX = 'translateX(-50%)';
+    }
+
+    let top: string;
+    let translateY = '';
+    if (cursorY + offset + bubbleMaxHeight > vh) {
+      top = `${cursorY - offset}px`;
+      translateY = 'translateY(-100%)';
+    } else {
+      top = `${cursorY + offset}px`;
+    }
+
+    const transform = [translateX, translateY].filter(Boolean).join(' ') || 'none';
+    this.bubbleEl.style.left = left;
+    this.bubbleEl.style.top = top;
+    this.bubbleEl.style.transform = transform;
+    this.bubbleEl.style.width = `${bubbleWidth}px`;
+  }
+
+  private dismissImmediate(): void {
+    this.cleanup();
+    this.visible = false;
+  }
+
+  private cleanup(): void {
+    stopTts();
+    this.stopTracking();
+
+    if (this.escapeHandler) {
+      document.removeEventListener('keydown', this.escapeHandler, true);
+      this.escapeHandler = null;
+    }
+
+    this.clearAutoDismiss();
+
+    if (this.ttsPollTimer) {
+      clearInterval(this.ttsPollTimer);
+      this.ttsPollTimer = null;
+    }
+
+    if (this.container && this.container.parentNode) {
+      this.container.parentNode.removeChild(this.container);
+    }
+
+    this.container = null;
+    this.shadowRoot = null;
+    this.bubbleEl = null;
+    this.historyEl = null;
+    this.transcriptEl = null;
+    this.responseEl = null;
+    this.followupEl = null;
+    this.followupInput = null;
+    this.contextBar = null;
+    this.contextFill = null;
+    this.contextLabel = null;
+    this.ttsBtn = null;
+    this.waveformBars = [];
+    this.accumulatedText = '';
+    this.currentTranscript = '';
+    this.currentState = 'idle';
+  }
+}
