@@ -63,7 +63,10 @@ Plans:
   2. The bubble label changes in real-time as SSE events arrive: Listening -> Transcribing -> Understanding -> Planning -> Done
   3. When Nova returns an answer, the streaming text renders inside the bubble (not a separate overlay)
   4. When steps are executing, the bubble shows the current step name
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 08-01-PLAN.md — CursorBubble component with all visual states and cursor tracking
+- [ ] 08-02-PLAN.md — Wire CursorBubble into extension pipeline with SSE event forwarding
 
 ### Phase 9: DOM Automation
 **Goal**: The extension executes action steps returned by Nova -- clicking elements, typing into inputs, navigating to URLs, scrolling -- safely and with a full audit trail per action
@@ -95,6 +98,6 @@ Plans:
 |-------|-----------|----------------|--------|-----------|
 | 6. Backend Foundation | 2/2 | Complete   | 2026-03-15 | - |
 | 7. Nova Reasoning + DOM Context | 2/2 | Complete   | 2026-03-15 | - |
-| 8. Unified Cursor UI | v2.0 | 0/TBD | Not started | - |
+| 8. Unified Cursor UI | v2.0 | 0/2 | Planning complete | - |
 | 9. DOM Automation | v2.0 | 0/TBD | Not started | - |
 | 10. Agent Loop | v2.0 | 0/TBD | Not started | - |
