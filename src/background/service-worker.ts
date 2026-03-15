@@ -16,6 +16,7 @@ let recordingTabId: number | null = null;
 let offscreenReady = false;
 let swAmpLogged = false;
 let agentLoopCancelled = false;
+let agentLoopRunning = false;
 
 // Track whether the offscreen document has been set up and recording started
 // so that stop-recording waits for start-recording to complete.
@@ -160,6 +161,14 @@ async function runAgentLoop(
     return;
   }
 
+  // Guard against concurrent agent loops
+  if (agentLoopRunning) {
+    console.warn('[ScreenSense][loop] Agent loop already running, skipping');
+    return;
+  }
+  agentLoopRunning = true;
+
+  try {
   // Transition bubble to executing state
   sendToTab(tabId, { action: 'bubble-state', state: 'executing' });
 
@@ -348,6 +357,9 @@ async function runAgentLoop(
     totalSteps: 0,
   });
   sendToTab(tabId, { action: 'bubble-state', state: 'done' });
+  } finally {
+    agentLoopRunning = false;
+  }
 }
 
 async function runPipeline(tabId: number, audioBase64: string, mimeType: string): Promise<void> {

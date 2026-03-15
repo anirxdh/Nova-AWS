@@ -174,21 +174,28 @@ async function actionExtract(selector: string): Promise<ActionResult> {
 async function actionScroll(selectorOrDirection: string): Promise<ActionResult> {
   const dir = selectorOrDirection.toLowerCase().trim();
 
+  // Minimum delay after scroll to let the animation complete before DOM observation
+  const SCROLL_SETTLE_MS = 600;
+
   // Handle direction-based scrolling
   if (dir === 'up') {
     window.scrollBy({ top: -window.innerHeight * 0.8, behavior: 'smooth' });
+    await new Promise(r => setTimeout(r, SCROLL_SETTLE_MS));
     return { ok: true, summary: 'Scrolled up one screen' };
   }
   if (dir === 'down') {
     window.scrollBy({ top: window.innerHeight * 0.8, behavior: 'smooth' });
+    await new Promise(r => setTimeout(r, SCROLL_SETTLE_MS));
     return { ok: true, summary: 'Scrolled down one screen' };
   }
   if (dir === 'top' || dir === 'page top' || dir === 'start') {
     window.scrollTo({ top: 0, behavior: 'smooth' });
+    await new Promise(r => setTimeout(r, SCROLL_SETTLE_MS));
     return { ok: true, summary: 'Scrolled to top of page' };
   }
   if (dir === 'bottom' || dir === 'page bottom' || dir === 'end' || dir.includes('bottom')) {
     window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+    await new Promise(r => setTimeout(r, SCROLL_SETTLE_MS));
     return { ok: true, summary: 'Scrolled to bottom of page' };
   }
 
