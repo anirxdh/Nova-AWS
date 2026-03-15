@@ -2,7 +2,7 @@ import { ExtensionState, IconState, MessageType, ConversationTurn, ConversationI
 import { isMicPermissionGranted } from '../shared/storage';
 import { MAX_CONVERSATION_TURNS } from '../shared/constants';
 import { captureScreenshot } from './screenshot';
-import { transcribeAudio, connectSSE, checkBackendHealth, sendTask, sendTaskContinue, TaskResponse, ActionHistoryEntry } from './api/backend-client';
+import { transcribeAudio, transcribeAudioStreaming, connectSSE, checkBackendHealth, sendTask, sendTaskContinue, TaskResponse, ActionHistoryEntry } from './api/backend-client';
 // groq-vision imports retained for Phase 8+ migration
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { streamGeminiResponse, generateTtsSummary } from './api/groq-vision';
@@ -320,9 +320,16 @@ async function runPipeline(tabId: number, audioBase64: string, mimeType: string)
 
     let transcript: string;
     try {
-      console.log('[ScreenSense][SW] Calling transcribeAudio...');
-      transcript = await transcribeAudio(audioBase64, mimeType);
-      console.log('[ScreenSense][SW] Transcription result:', transcript);
+      try {
+        console.log('[ScreenSense][SW] Calling transcribeAudioStreaming...');
+        transcript = await transcribeAudioStreaming(audioBase64, mimeType);
+        console.log('[ScreenSense][SW] Streaming transcription succeeded:', transcript);
+      } catch (streamErr) {
+        console.warn('[ScreenSense][SW] Streaming transcription failed, falling back to batch:', streamErr);
+        console.log('[ScreenSense][SW] Calling transcribeAudio (batch fallback)...');
+        transcript = await transcribeAudio(audioBase64, mimeType);
+        console.log('[ScreenSense][SW] Batch transcription result:', transcript);
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Couldn't catch that — try holding a bit longer";
       sendToTab(tabId, { action: 'pipeline-error', error: msg });

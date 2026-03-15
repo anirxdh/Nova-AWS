@@ -62,6 +62,104 @@ export async function transcribeAudio(
 }
 
 /**
+ * Transcribe audio via WebSocket streaming to /transcribe/stream.
+ * Eliminates multipart upload overhead by sending audio over WebSocket.
+ * Falls back to batch mode (transcribeAudio) if the WebSocket fails or times out.
+ *
+ * @param audioBase64 - Base64-encoded audio data from the offscreen recorder
+ * @param mimeType - MIME type of the audio (e.g., "audio/webm")
+ * @returns The transcript text
+ * @throws Error if WebSocket fails or times out — caller should fall back to transcribeAudio()
+ */
+export async function transcribeAudioStreaming(
+  audioBase64: string,
+  mimeType: string
+): Promise<string> {
+  console.log('[ScreenSense][backend-client] transcribeAudioStreaming called — base64 length:', audioBase64.length, 'mimeType:', mimeType);
+
+  const WS_URL = 'ws://localhost:8000/transcribe/stream';
+  const TIMEOUT_MS = 15000;
+
+  return new Promise<string>((resolve, reject) => {
+    let settled = false;
+    const timeoutId = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        ws.close();
+        reject(new Error('Streaming transcription timed out after 15s'));
+      }
+    }, TIMEOUT_MS);
+
+    const ws = new WebSocket(WS_URL);
+    ws.binaryType = 'arraybuffer';
+
+    ws.onopen = () => {
+      try {
+        // 1. Send config message with mime type
+        ws.send(JSON.stringify({ mime_type: mimeType }));
+
+        // 2. Convert base64 to binary and send as a single binary message
+        const binaryString = atob(audioBase64);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        ws.send(bytes.buffer);
+
+        // 3. Signal that audio is complete
+        ws.send(JSON.stringify({ action: 'done' }));
+
+        console.log('[ScreenSense][backend-client] WebSocket: config + audio + done sent, waiting for transcript');
+      } catch (err) {
+        if (!settled) {
+          settled = true;
+          clearTimeout(timeoutId);
+          ws.close();
+          reject(new Error(`WebSocket send failed: ${err}`));
+        }
+      }
+    };
+
+    ws.onmessage = (event: MessageEvent) => {
+      if (settled) return;
+      try {
+        const data = JSON.parse(event.data as string);
+        if (data.error) {
+          settled = true;
+          clearTimeout(timeoutId);
+          ws.close();
+          reject(new Error(`Streaming transcription error: ${data.error}`));
+        } else if (data.transcript !== undefined) {
+          settled = true;
+          clearTimeout(timeoutId);
+          ws.close();
+          console.log('[ScreenSense][backend-client] Streaming transcript received:', data.transcript);
+          resolve(data.transcript);
+        }
+      } catch {
+        // Ignore non-JSON messages
+      }
+    };
+
+    ws.onerror = (_event: Event) => {
+      if (!settled) {
+        settled = true;
+        clearTimeout(timeoutId);
+        reject(new Error('WebSocket connection error'));
+      }
+    };
+
+    ws.onclose = (_event: CloseEvent) => {
+      if (!settled) {
+        settled = true;
+        clearTimeout(timeoutId);
+        reject(new Error('WebSocket closed before transcript received'));
+      }
+    };
+  });
+}
+
+/**
  * Connect to the backend SSE /events endpoint.
  * Returns an EventSource that emits "status" events.
  *
