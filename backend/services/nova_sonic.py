@@ -1,97 +1,68 @@
-import base64
-import json
 import os
+import requests
 
-import boto3
-from botocore.exceptions import ClientError, NoCredentialsError, PartialCredentialsError
+
+def transcribe_audio_streaming(audio_chunks: list, mime_type: str) -> str:
+    """Transcribe pre-accumulated audio chunks using Groq Whisper.
+
+    Designed for use with the WebSocket streaming endpoint where audio data
+    is accumulated server-side during recording. Eliminates upload latency
+    by joining chunks that are already on the server when transcription begins.
+    """
+    audio_bytes = b"".join(audio_chunks)
+    return transcribe_audio(audio_bytes, mime_type)
 
 
 def transcribe_audio(audio_bytes: bytes, mime_type: str) -> str:
-    """Transcribe audio using Amazon Nova Sonic via Bedrock invoke_model."""
-    aws_key = os.getenv("AWS_ACCESS_KEY_ID")
-    aws_secret = os.getenv("AWS_SECRET_ACCESS_KEY")
-    aws_region = os.getenv("AWS_REGION", "us-east-1")
+    """Transcribe audio using Groq Whisper API."""
+    groq_key = os.getenv("GROQ_API_KEY")
 
-    if not aws_key or not aws_secret or aws_key == "your-key-here":
+    if not groq_key or groq_key == "your-key-here":
         raise ValueError(
-            "AWS credentials not configured — set AWS_ACCESS_KEY_ID and "
-            "AWS_SECRET_ACCESS_KEY in backend/.env"
+            "Groq API key not configured — set GROQ_API_KEY in backend/.env"
         )
 
-    try:
-        client = boto3.client(
-            "bedrock-runtime",
-            region_name=aws_region,
-            aws_access_key_id=aws_key,
-            aws_secret_access_key=aws_secret,
-        )
-    except Exception as e:
-        raise ValueError(f"Failed to create AWS client: {e}") from e
-
-    # Determine Bedrock audio media type from mime_type
+    # Determine file extension from mime type
     if "webm" in mime_type:
-        audio_format = "webm"
+        ext = "webm"
     elif "ogg" in mime_type:
-        audio_format = "ogg"
+        ext = "ogg"
     elif "mp4" in mime_type:
-        audio_format = "mp4"
+        ext = "mp4"
     elif "wav" in mime_type:
-        audio_format = "wav"
+        ext = "wav"
     else:
-        audio_format = "webm"
+        ext = "webm"
 
     try:
-        # Nova Sonic uses converse_stream with audio content for speech-to-text.
-        # We send audio bytes directly and collect the text output.
-        response = client.converse_stream(
-            modelId="amazon.nova-sonic-v1:0",
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "audio": {
-                                "format": audio_format,
-                                "source": {"bytes": audio_bytes},
-                            }
-                        }
-                    ],
-                }
-            ],
-            inferenceConfig={"maxTokens": 1024},
+        response = requests.post(
+            "https://api.groq.com/openai/v1/audio/transcriptions",
+            headers={"Authorization": f"Bearer {groq_key}"},
+            files={"file": (f"recording.{ext}", audio_bytes, mime_type)},
+            data={"model": "whisper-large-v3-turbo", "language": "en"},
+            timeout=30,
         )
 
-        # Collect transcript from streamed response events
-        transcript_parts = []
-        for event in response["stream"]:
-            if "contentBlockDelta" in event:
-                delta = event["contentBlockDelta"]["delta"]
-                if "text" in delta:
-                    transcript_parts.append(delta["text"])
+        if response.status_code != 200:
+            raise ValueError(
+                f"Groq Whisper error (HTTP {response.status_code}): {response.text}"
+            )
 
-        transcript = "".join(transcript_parts).strip()
+        result = response.json()
+        transcript = result.get("text", "").strip()
+
         if not transcript:
             raise ValueError(
                 "No transcript produced — audio may be too short or unclear"
             )
+
         return transcript
 
-    except (NoCredentialsError, PartialCredentialsError) as e:
-        raise ValueError(
-            "AWS credentials are invalid or incomplete — check backend/.env"
-        ) from e
-    except ClientError as e:
-        error_code = e.response["Error"]["Code"]
-        error_msg = e.response["Error"]["Message"]
-        if error_code in ("AccessDeniedException", "UnauthorizedException"):
-            raise ValueError(
-                f"AWS access denied — ensure the IAM user has Bedrock permissions "
-                f"and Nova Sonic model access is enabled: {error_msg}"
-            ) from e
-        if error_code == "ValidationException":
-            raise ValueError(
-                f"Bedrock validation error — audio format may not be supported: {error_msg}"
-            ) from e
-        raise ValueError(f"AWS Bedrock error ({error_code}): {error_msg}") from e
+    except requests.exceptions.Timeout:
+        raise ValueError("Transcription timed out — try again")
+    except requests.exceptions.ConnectionError:
+        raise ValueError("Cannot reach Groq API — check your internet connection")
     except Exception as e:
+        if "ValueError" in type(e).__name__:
+            raise
         raise ValueError(f"Transcription failed: {e}") from e
