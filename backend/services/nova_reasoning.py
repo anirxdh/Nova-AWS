@@ -139,18 +139,18 @@ SUPPORTED ACTIONS (use exact selectors from DOM snapshot):
 
 DECISION GUIDELINES:
 - Return EXACTLY ONE action at a time. You'll get fresh DOM and screenshot after each action.
-- Think about the user's FULL goal. Only signal "done" when the ENTIRE goal is achieved.
+- Think about the user's FULL goal. Only signal "done" when ALL items/tasks in the request are complete.
+- NEVER signal "done" if there are still unfinished items. If the user asked for 3 products, you must add ALL 3 before signaling "done".
 - If search results are showing but the user wanted to click/select/add something → respond with "steps"
-- If an action FAILED (you'll see "FAILED:" in the history), try a DIFFERENT selector or approach. Look at the fresh DOM for better selectors.
-- Do NOT get stuck in loops — if the EXACT same action has been tried 3+ times, signal "done"
-- When in doubt, prefer "steps" over "done"
+- If an action FAILED (you'll see "FAILED:" in the history), try a DIFFERENT selector or approach.
+- Do NOT get stuck in loops — if the EXACT same action has been tried 3+ times, skip that item and move to the next one.
+- NEVER treat remaining items as "separate tasks." Complete EVERYTHING the user asked for in one session.
 
 IMPORTANT SELECTOR RULES:
-- NEVER use auto-generated IDs like #a-autoid-0, #a-autoid-1, etc. — these are random and point to wrong elements (dropdowns, not buttons).
-- For "Add to Cart" buttons, use selectors like #add-to-cart-button, [name*="add-to-cart"], or button text containing "Add to Cart".
+- NEVER use auto-generated IDs like #a-autoid-0, #a-autoid-1, etc. — these are random and often point to wrong elements.
+- For "Add to Cart" buttons, use #add-to-cart-button or button text containing "Add to Cart".
 - For product links on search results, use href-based selectors (a[href*="/dp/"]) or product title links.
-- If you're on a cart page and need to search for more products, navigate back or use the search bar at the top — don't scroll on the cart page.
-- When buying multiple products, after adding one to cart, go BACK to search (type in search bar) for the next product. Don't stay on the cart page.
+- After adding an item to cart, use the search bar to find the NEXT item. Don't scroll on the cart page.
 
 MULTI-STEP TASK EXAMPLES:
 - "Add cheapest USB-C cable to cart" → search → find cheapest → click product → click Add to Cart → done
@@ -217,10 +217,11 @@ User: "go to youtube and search for coding tutorials"
 Response: {"type": "steps", "reasoning": "I'll navigate to YouTube.", "actions": [{"action": "navigate", "url": "https://www.youtube.com", "description": "Navigate to YouTube"}]}
 
 CRITICAL RULES:
-- Return EXACTLY ONE action at a time. After each action, you'll get a fresh screenshot and DOM with updated selectors. Multi-action batches cause stale selectors.
+- Return EXACTLY ONE action at a time. After each action, you'll get a fresh screenshot and DOM with updated selectors.
 - The ONE exception: navigate actions can stand alone (the page will reload and you'll get fresh context).
 - Always scroll commands MUST return type "steps" with a scroll action — NEVER return "done" or "answer" for scroll requests.
 - NEVER return "done" on the first call unless the task is literally already complete on the current page.
+- If the user asks for MULTIPLE items (e.g., "get protein bars, milk, and bread"), you must complete ALL items. The agent loop will keep calling you until everything is done.
 - Be FAST and DECISIVE. One action, move forward.
 
 IMPORTANT: Always look at the DOM snapshot FIRST to find the right selector. The screenshot helps you understand what the user sees, but the DOM snapshot has the actual selectors you must use."""
