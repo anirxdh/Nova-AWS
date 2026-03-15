@@ -2,10 +2,12 @@ import { ExtensionState, IconState, MessageType, ConversationTurn, ConversationI
 import { isMicPermissionGranted } from '../shared/storage';
 import { MAX_CONVERSATION_TURNS } from '../shared/constants';
 import { captureScreenshot } from './screenshot';
-import { transcribeAudio, connectSSE, checkBackendHealth, sendTask, TaskResponse } from './api/backend-client';
+import { transcribeAudio, connectSSE, checkBackendHealth, sendTask, sendTaskContinue, TaskResponse, ActionHistoryEntry } from './api/backend-client';
 // groq-vision imports retained for Phase 8+ migration
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { streamGeminiResponse, generateTtsSummary } from './api/groq-vision';
+
+const MAX_AGENT_ITERATIONS = 10;
 
 let currentState: ExtensionState = 'idle';
 let latestScreenshot: string | undefined;
@@ -133,81 +135,167 @@ function broadcastStateChange(state: ExtensionState): void {
 
 // ─── Pipeline ───
 
-async function executeSteps(
+async function runAgentLoop(
   tabId: number,
-  actions: TaskResponse['actions']
+  originalCommand: string,
+  initialActions: TaskResponse['actions']
 ): Promise<void> {
-  if (!actions || actions.length === 0) {
+  if (!initialActions || initialActions.length === 0) {
     sendToTab(tabId, { action: 'bubble-state', state: 'done' });
     return;
   }
 
-  const totalSteps = actions.length;
-
   // Transition bubble to executing state
   sendToTab(tabId, { action: 'bubble-state', state: 'executing' });
 
-  for (let i = 0; i < totalSteps; i++) {
-    const step = actions[i];
+  const actionHistory: ActionHistoryEntry[] = [];
+  let currentActions = initialActions;
+  let iteration = 0;
 
-    // Update bubble with current step name and progress
-    sendToTab(tabId, {
-      action: 'bubble-step',
-      stepName: step.description,
-      stepIndex: i + 1,
-      totalSteps,
-    });
+  while (iteration < MAX_AGENT_ITERATIONS) {
+    iteration++;
 
-    // Send execute-action to content script and await result
-    let result: { ok: boolean; summary: string; error?: string };
+    // Inner loop: execute each action in the current batch
+    for (const step of currentActions) {
+      // Show intent: what we're about to do
+      sendToTab(tabId, {
+        action: 'bubble-step',
+        stepName: step.description,
+        stepIndex: actionHistory.length + 1,
+        totalSteps: 0, // 0 = unknown total in agent mode
+      });
+
+      // Execute the action in the content script
+      let result: { ok: boolean; summary: string; error?: string };
+      try {
+        result = await chrome.tabs.sendMessage(tabId, {
+          action: 'execute-action',
+          actionType: step.action,
+          selector: step.selector,
+          value: step.value,
+          url: step.url,
+          direction: step.direction,
+          description: step.description,
+        });
+      } catch {
+        // Content script unreachable (tab closed, navigated away, etc.)
+        sendToTab(tabId, {
+          action: 'pipeline-error',
+          error: `Action failed: content script unreachable`,
+        });
+        return;
+      }
+
+      console.log(`[ScreenSense][loop] iter=${iteration} action="${step.description}" result:`, result);
+
+      if (!result.ok) {
+        // Action failed — stop the loop
+        sendToTab(tabId, {
+          action: 'pipeline-error',
+          error: `Action failed: ${result.error || 'Unknown error'}`,
+        });
+        return;
+      }
+
+      // Show action result summary in the bubble (EXT-06: action summary reporting)
+      sendToTab(tabId, {
+        action: 'bubble-step',
+        stepName: result.summary,
+        stepIndex: actionHistory.length + 1,
+        totalSteps: 0,
+      });
+
+      // Track what we did for Nova's context in the next iteration
+      actionHistory.push({ description: step.description, result: result.summary });
+
+      // Brief pause after action to let the page settle (DOM updates, animations, network requests)
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+
+    // After executing all actions in the current batch — re-observe the page
+    // Wait for the page to fully settle after last action (navigation, AJAX, animations)
+    await new Promise((resolve) => setTimeout(resolve, 800));
+
+    // Re-capture screenshot of the updated page
+    let newScreenshot: string;
     try {
-      result = await chrome.tabs.sendMessage(tabId, {
-        action: 'execute-action',
-        actionType: step.action,
-        selector: step.selector,
-        value: step.value,
-        url: step.url,
-        direction: step.direction,
-        description: step.description,
-      });
-    } catch (err) {
-      // Content script unreachable (tab closed, navigated away, etc.)
-      sendToTab(tabId, {
-        action: 'pipeline-error',
-        error: `Step ${i + 1} failed: content script unreachable`,
-      });
+      newScreenshot = await captureScreenshot(tabId);
+    } catch {
+      // Cannot re-observe — treat as done
+      console.warn('[ScreenSense][loop] Could not capture screenshot for re-observation, treating as done');
+      sendToTab(tabId, { action: 'bubble-state', state: 'done' });
       return;
     }
 
-    console.log(`[ScreenSense] Step ${i + 1}/${totalSteps} result:`, result);
-
-    if (!result.ok) {
-      // Action failed -- show error and stop
-      sendToTab(tabId, {
-        action: 'pipeline-error',
-        error: `Step ${i + 1} failed: ${result.error || 'Unknown error'}`,
-      });
-      return;
+    // Re-scrape DOM from the updated page
+    let domSnapshot: object = {};
+    try {
+      const domResponse = await chrome.tabs.sendMessage(tabId, { action: 'scrape-dom' });
+      if (domResponse?.ok && domResponse.snapshot) {
+        domSnapshot = domResponse.snapshot;
+      }
+    } catch {
+      console.warn('[ScreenSense][loop] Could not scrape DOM for re-observation, using empty object');
     }
 
-    // Show action result summary in the bubble (EXT-06: action summary reporting)
-    // Reuse bubble-step with result.summary so the user sees what actually happened
-    // (e.g., "Clicked 'Add to Cart'" or "Typed 'headphones' into #search-input")
+    // Show re-evaluation progress in the bubble
     sendToTab(tabId, {
-      action: 'bubble-step',
-      stepName: result.summary,
-      stepIndex: i + 1,
-      totalSteps,
+      action: 'bubble-state',
+      state: 'understanding',
+      label: `Re-evaluating... (${iteration}/${MAX_AGENT_ITERATIONS})`,
     });
 
-    // Brief pause between steps so the user can see the summary
-    // (the rate limiter in action-executor.ts also enforces 300ms minimum)
-    if (i < totalSteps - 1) {
-      await new Promise((resolve) => setTimeout(resolve, 400));
+    // Ask Nova what to do next based on the updated page
+    let continueResult: TaskResponse;
+    try {
+      continueResult = await sendTaskContinue(originalCommand, actionHistory, newScreenshot, domSnapshot);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Agent loop failed to continue';
+      sendToTab(tabId, { action: 'pipeline-error', error: msg });
+      return;
+    }
+
+    console.log(`[ScreenSense][loop] iter=${iteration} Nova response type:`, continueResult.type);
+
+    // Evaluate Nova's response
+    if (continueResult.type === 'done') {
+      // Task complete — signal done and exit
+      sendToTab(tabId, { action: 'bubble-state', state: 'done' });
+      return;
+    }
+
+    if (continueResult.type === 'answer') {
+      // Nova wants to communicate something — show the answer and exit
+      const answerText = continueResult.text || '';
+      sendToTab(tabId, { action: 'bubble-state', state: 'answering' });
+      sendToTab(tabId, { action: 'bubble-answer-chunk', text: answerText });
+      sendToTab(tabId, { action: 'bubble-answer-done', fullText: answerText });
+      const firstSentence = answerText.split(/\.\s/)[0];
+      const summary = firstSentence.endsWith('.') ? firstSentence : firstSentence + '.';
+      sendToTab(tabId, { action: 'tts-summary', summary });
+      return;
+    }
+
+    if (continueResult.type === 'steps') {
+      if (!continueResult.actions || continueResult.actions.length === 0) {
+        // Empty steps — treat as done
+        sendToTab(tabId, { action: 'bubble-state', state: 'done' });
+        return;
+      }
+      // Continue the loop with the next batch of actions
+      currentActions = continueResult.actions;
+      sendToTab(tabId, { action: 'bubble-state', state: 'executing' });
+      continue;
     }
   }
 
-  // All steps completed successfully
+  // Max iterations reached without Nova signalling done
+  sendToTab(tabId, {
+    action: 'bubble-step',
+    stepName: `Reached maximum iterations (${MAX_AGENT_ITERATIONS})`,
+    stepIndex: actionHistory.length,
+    totalSteps: 0,
+  });
   sendToTab(tabId, { action: 'bubble-state', state: 'done' });
 }
 
@@ -307,8 +395,8 @@ async function runPipeline(tabId: number, audioBase64: string, mimeType: string)
       }
       sendToTab(tabId, { action: 'conversation-info', info: getConversationInfo(tabId) });
 
-      // Execute steps on the page
-      await executeSteps(tabId, taskResult.actions);
+      // Execute steps via agent loop (re-observes page after each batch)
+      await runAgentLoop(tabId, transcript, taskResult.actions);
     }
   } catch (err) {
     console.error('[ScreenSense] Pipeline error:', err);
@@ -393,8 +481,8 @@ async function runFollowUp(tabId: number, text: string): Promise<void> {
       }
       sendToTab(tabId, { action: 'conversation-info', info: getConversationInfo(tabId) });
 
-      // Execute steps on the page
-      await executeSteps(tabId, taskResult.actions);
+      // Execute steps via agent loop (re-observes page after each batch)
+      await runAgentLoop(tabId, text, taskResult.actions);
     }
   } catch (err) {
     console.error('[ScreenSense] Follow-up error:', err);

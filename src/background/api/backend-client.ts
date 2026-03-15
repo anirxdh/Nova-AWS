@@ -12,6 +12,8 @@ export async function transcribeAudio(
   audioBase64: string,
   mimeType: string
 ): Promise<string> {
+  console.log('[ScreenSense][backend-client] transcribeAudio called — base64 length:', audioBase64.length, 'mimeType:', mimeType);
+
   // Convert base64 to Blob for multipart upload
   const binaryString = atob(audioBase64);
   const bytes = new Uint8Array(binaryString.length);
@@ -24,6 +26,8 @@ export async function transcribeAudio(
     : 'webm';
   const audioBlob = new Blob([bytes], { type: mimeType });
 
+  console.log('[ScreenSense][backend-client] Audio blob size:', audioBlob.size, 'bytes, posting to', `${BACKEND_URL}/transcribe`);
+
   const formData = new FormData();
   formData.append('audio', audioBlob, `recording.${ext}`);
   formData.append('mime_type', mimeType);
@@ -32,6 +36,8 @@ export async function transcribeAudio(
     method: 'POST',
     body: formData,
   });
+
+  console.log('[ScreenSense][backend-client] /transcribe response status:', response.status);
 
   if (!response.ok) {
     let detail = '';
@@ -42,6 +48,8 @@ export async function transcribeAudio(
       detail = `HTTP ${response.status}`;
     }
 
+    console.error('[ScreenSense][backend-client] /transcribe error:', detail);
+
     if (response.status === 500 && detail.includes('credentials')) {
       throw new Error('Backend AWS credentials not configured — check backend/.env');
     }
@@ -49,6 +57,7 @@ export async function transcribeAudio(
   }
 
   const data = await response.json();
+  console.log('[ScreenSense][backend-client] Transcript received:', data.transcript);
   return data.transcript;
 }
 
@@ -68,8 +77,9 @@ export function connectSSE(): EventSource {
 }
 
 export interface TaskResponse {
-  type: 'answer' | 'steps';
+  type: 'answer' | 'steps' | 'done';
   text?: string;
+  summary?: string;  // used when type === 'done'
   actions?: Array<{
     action: string;
     selector?: string;
@@ -80,6 +90,11 @@ export interface TaskResponse {
   }>;
 }
 
+export interface ActionHistoryEntry {
+  description: string;
+  result: string;
+}
+
 /**
  * Send a task (command + screenshot + DOM) to the backend for Nova 2 Lite reasoning.
  */
@@ -88,6 +103,8 @@ export async function sendTask(
   screenshotDataUrl: string,
   domSnapshot: object
 ): Promise<TaskResponse> {
+  console.log('[ScreenSense][backend-client] sendTask called — command:', command);
+
   // Strip the data:image/png;base64, prefix to get raw base64
   const base64 = screenshotDataUrl.replace(/^data:image\/\w+;base64,/, '');
 
@@ -101,6 +118,8 @@ export async function sendTask(
     }),
   });
 
+  console.log('[ScreenSense][backend-client] /task response status:', response.status);
+
   if (!response.ok) {
     let detail = '';
     try {
@@ -110,13 +129,67 @@ export async function sendTask(
       detail = `HTTP ${response.status}`;
     }
 
+    console.error('[ScreenSense][backend-client] /task error:', detail);
+
     if (response.status === 500 && detail.includes('credentials')) {
       throw new Error('Backend AWS credentials not configured — check backend/.env');
     }
     throw new Error(`Task processing failed — ${detail}`);
   }
 
-  return await response.json();
+  const result = await response.json();
+  console.log('[ScreenSense][backend-client] Task result type:', result.type);
+  return result;
+}
+
+/**
+ * Continue a multi-step task by sending updated page state + action history to Nova.
+ * Called after each action batch during the agent loop.
+ */
+export async function sendTaskContinue(
+  originalCommand: string,
+  actionHistory: ActionHistoryEntry[],
+  screenshotDataUrl: string,
+  domSnapshot: object
+): Promise<TaskResponse> {
+  console.log('[ScreenSense][backend-client] sendTaskContinue called — command:', originalCommand, 'history length:', actionHistory.length);
+
+  // Strip the data:image/png;base64, prefix to get raw base64
+  const base64 = screenshotDataUrl.replace(/^data:image\/\w+;base64,/, '');
+
+  const response = await fetch(`${BACKEND_URL}/task/continue`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      original_command: originalCommand,
+      action_history: actionHistory,
+      screenshot: base64,
+      dom_snapshot: domSnapshot,
+    }),
+  });
+
+  console.log('[ScreenSense][backend-client] /task/continue response status:', response.status);
+
+  if (!response.ok) {
+    let detail = '';
+    try {
+      const errBody = await response.json();
+      detail = errBody?.detail || JSON.stringify(errBody);
+    } catch {
+      detail = `HTTP ${response.status}`;
+    }
+
+    console.error('[ScreenSense][backend-client] /task/continue error:', detail);
+
+    if (response.status === 500 && detail.includes('credentials')) {
+      throw new Error('Backend AWS credentials not configured — check backend/.env');
+    }
+    throw new Error(`Continue task failed — ${detail}`);
+  }
+
+  const result = await response.json();
+  console.log('[ScreenSense][backend-client] Continue result type:', result.type);
+  return result;
 }
 
 /**
