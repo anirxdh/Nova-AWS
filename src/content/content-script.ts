@@ -3,6 +3,7 @@ import { initShortcutHandler } from './shortcut-handler';
 import { CursorBubble } from './cursor-bubble';
 import { stop as stopTts } from './tts';
 import { scrapeDom } from './dom-scraper';
+import { executeAction } from './action-executor';
 
 const isTopFrame = window === window.top;
 
@@ -18,6 +19,7 @@ const bubble = new CursorBubble();
 
 let lastCursorX = 0;
 let lastCursorY = 0;
+let contentAmpLogged = false;
 
 // Lightweight mouse tracking for initial show position only
 // CursorBubble handles its own tracking internally once shown
@@ -41,6 +43,7 @@ async function onHold(event: Event): Promise<void> {
   const detail = (event as CustomEvent).detail;
   lastCursorX = detail.cursorX;
   lastCursorY = detail.cursorY;
+  contentAmpLogged = false;
 
   // Stop TTS when user starts recording again
   stopTts();
@@ -68,7 +71,23 @@ async function onRelease(event: Event): Promise<void> {
 
 // Listen for messages from background (pipeline stages, streaming, errors, amplitude)
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  // Handle scrape-dom first — needs async sendResponse
+  // Handle execute-action — needs async sendResponse
+  if (message.action === 'execute-action') {
+    // Execute the DOM action and return result asynchronously
+    executeAction({
+      actionType: message.actionType,
+      selector: message.selector,
+      value: message.value,
+      url: message.url,
+      direction: message.direction,
+      description: message.description,
+    }).then((result) => {
+      sendResponse(result);
+    });
+    return true; // keep message channel open for async sendResponse
+  }
+
+  // Handle scrape-dom — needs async sendResponse
   if (message.action === 'scrape-dom') {
     const snapshot = scrapeDom();
     sendResponse({ ok: true, snapshot });
@@ -95,13 +114,26 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   } else if (message.action === 'bubble-step') {
     bubble.setStep(message.stepName, message.stepIndex, message.totalSteps);
   } else if (message.action === 'amplitude-data') {
-    bubble.updateAmplitude(new Uint8Array(message.data));
+    const freqData = new Uint8Array(message.data);
+    if (!contentAmpLogged) {
+      const max = Math.max(...message.data);
+      console.log('[ScreenSense][content] amplitude-data received, len=', message.data.length, 'max=', max, 'bubbleVisible=', bubble.isVisible());
+      contentAmpLogged = true;
+    }
+    bubble.updateAmplitude(freqData);
   } else if (message.action === 'tts-summary') {
     bubble.speakSummary(message.summary);
   } else if (message.action === 'conversation-info') {
     bubble.updateConversationInfo(message.info);
   } else if (message.action === 'pipeline-error') {
     bubble.showError(message.error);
+  } else if (message.action === 'start-listening') {
+    // Fallback: service worker tells us to show listening UI (handles iframe case
+    // where the screensense-hold custom event fires on the wrong document)
+    if (!bubble.isVisible()) {
+      bubble.show(lastCursorX, lastCursorY);
+      bubble.setState('listening');
+    }
   }
 });
 
