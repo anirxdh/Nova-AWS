@@ -9,3 +9,8 @@ __pycache__/
 *.pyc
 node_modules/
 dist/
+src/global-hack.mp4
+src/global-hack-final.mp4
+*.mov
+landing/*.mov
+landing/*.mp4
