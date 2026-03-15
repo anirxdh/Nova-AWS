@@ -83,16 +83,6 @@ function isVisible(el: Element): boolean {
   return rect.width > 0 && rect.height > 0;
 }
 
-function isInViewport(el: Element, margin = 200): boolean {
-  const rect = el.getBoundingClientRect();
-  return (
-    rect.bottom > -margin &&
-    rect.top < window.innerHeight + margin &&
-    rect.right > -margin &&
-    rect.left < window.innerWidth + margin
-  );
-}
-
 function getBBox(el: Element): { x: number; y: number; w: number; h: number } {
   const rect = el.getBoundingClientRect();
   return {
@@ -254,7 +244,6 @@ function scrapeButtons(): ElementInfo[] {
   for (const el of els) {
     if (results.length >= 100) break;
     if (!isVisible(el)) continue;
-    if (!isInViewport(el)) continue;
     const text = trimText(
       el.textContent || (el as HTMLInputElement).value || el.getAttribute('aria-label'),
       200
@@ -274,9 +263,8 @@ function scrapeLinks(): ElementInfo[] {
   const els = Array.from(document.querySelectorAll('a[href]'));
   const results: ElementInfo[] = [];
   for (const el of els) {
-    if (results.length >= 60) break;
+    if (results.length >= 100) break;
     if (!isVisible(el)) continue;
-    if (!isInViewport(el)) continue;
     const anchor = el as HTMLAnchorElement;
     const text = trimText(
       anchor.textContent || anchor.getAttribute('aria-label'),
@@ -317,7 +305,7 @@ function buildInputInfo(el: HTMLInputElement | HTMLTextAreaElement | HTMLSelectE
 function scrapeInputs(): InputInfo[] {
   const els = Array.from(
     document.querySelectorAll('input, textarea, select')
-  ).filter((el) => isInViewport(el)).slice(0, 50) as (HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement)[];
+  ).slice(0, 50) as (HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement)[];
   return els.map(buildInputInfo);
 }
 
@@ -359,7 +347,6 @@ function scrapeImages(): Array<{ alt: string; src: string; selector: string }> {
   const results: Array<{ alt: string; src: string; selector: string }> = [];
   for (const el of els) {
     if (results.length >= 50) break;
-    if (!isInViewport(el)) continue;
     const alt = trimText(el.alt, 200);
     if (!alt) continue; // skip images without alt text
     results.push({
@@ -589,7 +576,7 @@ function scrapeTextContent(): string {
     .replace(/ {2,}/g, ' ')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
-  return cleaned.slice(0, 5000);
+  return cleaned.slice(0, 8000);
 }
 
 /* ------------------------------------------------------------------ */
