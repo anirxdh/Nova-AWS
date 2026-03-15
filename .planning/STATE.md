@@ -4,7 +4,7 @@ milestone: v2.0
 milestone_name: Core Nova Agent
 status: planning
 stopped_at: Completed 06-02-PLAN.md — SSE event streaming + extension rewire to FastAPI backend
-last_updated: "2026-03-15T05:38:34.399Z"
+last_updated: "2026-03-15T05:42:18.299Z"
 last_activity: 2026-03-14 — Roadmap created for v2.0 Core Nova Agent (phases 6-10)
 progress:
   total_phases: 5
