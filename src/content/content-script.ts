@@ -151,7 +151,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true; // keep message channel open for async sendResponse
   }
 
-  // Handle scrape-dom — synchronous
+  // Handle scrape-dom — keep port open for large payload serialization
   if (message.action === 'scrape-dom') {
     try {
       const snapshot = scrapeDom();
@@ -159,7 +159,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     } catch (e) {
       sendResponse({ ok: false, error: (e as Error).message });
     }
-    return false;
+    return true;
   }
 
   // Handle bubble visibility for screenshot capture

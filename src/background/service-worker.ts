@@ -421,7 +421,11 @@ async function runAgentLoop(
     const domButtonCount = (domSnapshot as any)?.buttons?.length || 0;
     const domInputCount = (domSnapshot as any)?.inputs?.length || 0;
     const domLinkCount = (domSnapshot as any)?.links?.length || 0;
-    dbg(`DOM snapshot: keys=[${domKeys.join(',')}] buttons=${domButtonCount} inputs=${domInputCount} links=${domLinkCount}`);
+    const domUrl = (domSnapshot as any)?.url || 'unknown';
+    dbg(`DOM snapshot: url=${domUrl} keys=${domKeys.length} buttons=${domButtonCount} inputs=${domInputCount} links=${domLinkCount}`);
+    if (domKeys.length === 0) {
+      dbg('WARNING: DOM snapshot is EMPTY — content script may have returned before page loaded');
+    }
 
     // Show re-evaluation progress in the bubble
     sendToTab(tabId, {
