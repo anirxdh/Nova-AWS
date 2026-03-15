@@ -5,7 +5,66 @@ import os
 import boto3
 from botocore.exceptions import ClientError, NoCredentialsError, PartialCredentialsError
 
+import re
+
 _bedrock_client = None
+
+
+def _extract_json(text: str) -> dict | list | None:
+    """Extract JSON from Nova's response, handling markdown code blocks and extra text.
+
+    Nova sometimes returns JSON wrapped in markdown (```json ... ```) or with
+    extra text before/after. This function tries multiple extraction strategies.
+    """
+    # Strategy 1: Direct parse
+    try:
+        parsed = json.loads(text.strip())
+        return parsed
+    except json.JSONDecodeError:
+        pass
+
+    # Strategy 2: Extract from markdown code block (```json ... ``` or ``` ... ```)
+    code_block = re.search(r'```(?:json)?\s*\n?(.*?)\n?\s*```', text, re.DOTALL)
+    if code_block:
+        try:
+            parsed = json.loads(code_block.group(1).strip())
+            return parsed
+        except json.JSONDecodeError:
+            pass
+
+    # Strategy 3: Find the first complete JSON object { ... } in the text
+    brace_start = text.find('{')
+    if brace_start != -1:
+        depth = 0
+        for i in range(brace_start, len(text)):
+            if text[i] == '{':
+                depth += 1
+            elif text[i] == '}':
+                depth -= 1
+                if depth == 0:
+                    try:
+                        parsed = json.loads(text[brace_start:i + 1])
+                        return parsed
+                    except json.JSONDecodeError:
+                        break
+
+    # Strategy 4: Find JSON array [ ... ]
+    bracket_start = text.find('[')
+    if bracket_start != -1:
+        depth = 0
+        for i in range(bracket_start, len(text)):
+            if text[i] == '[':
+                depth += 1
+            elif text[i] == ']':
+                depth -= 1
+                if depth == 0:
+                    try:
+                        parsed = json.loads(text[bracket_start:i + 1])
+                        return parsed
+                    except json.JSONDecodeError:
+                        break
+
+    return None
 
 
 def _get_bedrock_client():
@@ -221,19 +280,17 @@ def reason_about_page(command: str, screenshot_base64: str, dom_snapshot: dict) 
 
         response_text = response["output"]["message"]["content"][0]["text"]
 
-        # Attempt to parse the response as JSON
-        try:
-            parsed = json.loads(response_text)
+        # Extract JSON from response (handles markdown code blocks, extra text, etc.)
+        parsed = _extract_json(response_text)
+        if parsed is not None:
             if isinstance(parsed, list):
-                # LLM returned a list of actions — wrap as steps
                 return {"type": "steps", "actions": parsed}
             if isinstance(parsed, dict) and "type" in parsed:
                 return parsed
             # Valid JSON but missing 'type' field — wrap it
             return {"type": "answer", "text": response_text}
-        except json.JSONDecodeError:
-            # Nova returned plain text instead of JSON — wrap as answer fallback
-            return {"type": "answer", "text": response_text}
+        # No JSON found — treat as plain text answer
+        return {"type": "answer", "text": response_text}
 
     except (NoCredentialsError, PartialCredentialsError) as e:
         raise ValueError(
@@ -342,19 +399,17 @@ def reason_continue(
 
         response_text = response["output"]["message"]["content"][0]["text"]
 
-        # Attempt to parse the response as JSON
-        try:
-            parsed = json.loads(response_text)
+        # Extract JSON from response (handles markdown code blocks, extra text, etc.)
+        parsed = _extract_json(response_text)
+        if parsed is not None:
             if isinstance(parsed, list):
-                # LLM returned a list of actions — wrap as steps
                 return {"type": "steps", "actions": parsed}
             if isinstance(parsed, dict) and "type" in parsed:
                 return parsed
-            # Valid JSON but missing 'type' field — assume done (continuation fallback)
+            # Valid JSON but missing 'type' field — assume done
             return {"type": "done", "summary": response_text}
-        except json.JSONDecodeError:
-            # Nova returned plain text instead of JSON — assume task is done
-            return {"type": "done", "summary": response_text}
+        # No JSON found — assume task is done
+        return {"type": "done", "summary": response_text}
 
     except (NoCredentialsError, PartialCredentialsError) as e:
         raise ValueError(
