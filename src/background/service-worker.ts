@@ -1,8 +1,10 @@
 import { ExtensionState, IconState, MessageType, ConversationTurn, ConversationInfo } from '../shared/types';
-import { isMicPermissionGranted, getApiKeys, getSettings } from '../shared/storage';
+import { isMicPermissionGranted } from '../shared/storage';
 import { MAX_CONVERSATION_TURNS } from '../shared/constants';
 import { captureScreenshot } from './screenshot';
-import { transcribeAudio, connectSSE, checkBackendHealth } from './api/backend-client';
+import { transcribeAudio, connectSSE, checkBackendHealth, sendTask, TaskResponse } from './api/backend-client';
+// groq-vision imports retained for Phase 8+ migration
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { streamGeminiResponse, generateTtsSummary } from './api/groq-vision';
 
 let currentState: ExtensionState = 'idle';
@@ -118,19 +120,6 @@ async function runPipeline(tabId: number, audioBase64: string, mimeType: string)
       return;
     }
 
-    // Check API keys
-    const keys = await getApiKeys();
-    if (!keys.groqKey) {
-      sendToTab(tabId, {
-        action: 'pipeline-error',
-        error: 'Add your API key in Settings to get started',
-      });
-      currentState = 'idle';
-      resolveIconState();
-      broadcastStateChange('idle');
-      return;
-    }
-
     // Stage 1: Transcribe audio
     sendToTab(tabId, { action: 'pipeline-stage', stage: 'transcribing' });
 
@@ -148,23 +137,21 @@ async function runPipeline(tabId: number, audioBase64: string, mimeType: string)
 
     sendToTab(tabId, { action: 'pipeline-stage', stage: 'thinking', transcript });
 
-    // Read settings for explanation level and display mode
-    const settings = await getSettings();
-
-    // Stage 2: Streaming response with conversation history
-    sendToTab(tabId, { action: 'pipeline-stage', stage: 'streaming' });
-    const history = getConversation(tabId);
-
-    let fullText: string;
+    // Capture DOM snapshot from content script
+    let domSnapshot: object = {};
     try {
-      fullText = await streamGeminiResponse(
-        screenshot,
-        transcript,
-        keys.groqKey,
-        (chunk: string) => sendToTab(tabId, { action: 'stream-chunk', text: chunk }),
-        history,
-        settings.explanationLevel
-      );
+      const domResponse = await chrome.tabs.sendMessage(tabId, { action: 'scrape-dom' });
+      if (domResponse?.ok && domResponse.snapshot) {
+        domSnapshot = domResponse.snapshot;
+      }
+    } catch {
+      console.warn('[ScreenSense] Could not scrape DOM, proceeding without');
+    }
+
+    // Send command + screenshot + DOM to backend for Nova reasoning
+    let taskResult: TaskResponse;
+    try {
+      taskResult = await sendTask(transcript, screenshot, domSnapshot);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Something went wrong — give it another try';
       sendToTab(tabId, { action: 'pipeline-error', error: msg });
@@ -174,24 +161,44 @@ async function runPipeline(tabId: number, audioBase64: string, mimeType: string)
       return;
     }
 
-    // Add turn to conversation history
-    history.push({ role: 'user', content: transcript });
-    history.push({ role: 'assistant', content: fullText });
+    // Handle response based on type
+    if (taskResult.type === 'answer') {
+      // For answers, display the text in the overlay (send as streaming for compatibility)
+      const answerText = taskResult.text || '';
+      sendToTab(tabId, { action: 'pipeline-stage', stage: 'streaming' });
+      sendToTab(tabId, { action: 'stream-chunk', text: answerText });
+      sendToTab(tabId, { action: 'stream-complete', fullText: answerText });
+      sendToTab(tabId, { action: 'pipeline-stage', stage: 'complete' });
 
-    while (history.length > MAX_CONVERSATION_TURNS * 2) {
-      history.shift();
-      history.shift();
-    }
+      // Add to conversation history
+      const history = getConversation(tabId);
+      history.push({ role: 'user', content: transcript });
+      history.push({ role: 'assistant', content: answerText });
+      while (history.length > MAX_CONVERSATION_TURNS * 2) {
+        history.shift();
+        history.shift();
+      }
+      sendToTab(tabId, { action: 'conversation-info', info: getConversationInfo(tabId) });
+    } else if (taskResult.type === 'steps') {
+      // For steps, log the action plan (execution comes in Phase 9)
+      const stepsText = taskResult.actions
+        ?.map((a, i) => `${i + 1}. ${a.description}`)
+        .join('\n') || 'No steps returned';
+      console.log('[ScreenSense] Action plan:', taskResult.actions);
 
-    sendToTab(tabId, { action: 'stream-complete', fullText });
-    sendToTab(tabId, { action: 'pipeline-stage', stage: 'complete' });
-    sendToTab(tabId, { action: 'conversation-info', info: getConversationInfo(tabId) });
+      sendToTab(tabId, { action: 'pipeline-stage', stage: 'streaming' });
+      sendToTab(tabId, { action: 'stream-chunk', text: stepsText });
+      sendToTab(tabId, { action: 'stream-complete', fullText: stepsText });
+      sendToTab(tabId, { action: 'pipeline-stage', stage: 'complete' });
 
-    // Generate TTS summary in background (fire-and-forget to avoid blocking follow-ups)
-    if (settings.displayMode !== 'text-only') {
-      generateTtsSummary(fullText, transcript, keys.groqKey).then((summary) => {
-        sendToTab(tabId, { action: 'tts-summary', summary });
-      }).catch(() => {});
+      const history = getConversation(tabId);
+      history.push({ role: 'user', content: transcript });
+      history.push({ role: 'assistant', content: stepsText });
+      while (history.length > MAX_CONVERSATION_TURNS * 2) {
+        history.shift();
+        history.shift();
+      }
+      sendToTab(tabId, { action: 'conversation-info', info: getConversationInfo(tabId) });
     }
   } catch (err) {
     console.error('[ScreenSense] Pipeline error:', err);
@@ -209,12 +216,6 @@ async function runFollowUp(tabId: number, text: string): Promise<void> {
   broadcastStateChange('processing');
 
   try {
-    const keys = await getApiKeys();
-    if (!keys.groqKey) {
-      sendToTab(tabId, { action: 'pipeline-error', error: 'Add your API key in Settings to get started' });
-      return;
-    }
-
     let screenshot: string;
     try {
       screenshot = await captureScreenshot(tabId);
@@ -223,47 +224,64 @@ async function runFollowUp(tabId: number, text: string): Promise<void> {
       return;
     }
 
-    // Read settings for explanation level and display mode
-    const settings = await getSettings();
-
     sendToTab(tabId, { action: 'pipeline-stage', stage: 'thinking', transcript: text });
-    sendToTab(tabId, { action: 'pipeline-stage', stage: 'streaming' });
 
-    const history = getConversation(tabId);
-
-    let fullText: string;
+    // Capture DOM snapshot from content script
+    let domSnapshot: object = {};
     try {
-      fullText = await streamGeminiResponse(
-        screenshot,
-        text,
-        keys.groqKey,
-        (chunk: string) => sendToTab(tabId, { action: 'stream-chunk', text: chunk }),
-        history,
-        settings.explanationLevel
-      );
+      const domResponse = await chrome.tabs.sendMessage(tabId, { action: 'scrape-dom' });
+      if (domResponse?.ok && domResponse.snapshot) {
+        domSnapshot = domResponse.snapshot;
+      }
+    } catch {
+      console.warn('[ScreenSense] Could not scrape DOM for follow-up, proceeding without');
+    }
+
+    // Send command + screenshot + DOM to backend for Nova reasoning
+    let taskResult: TaskResponse;
+    try {
+      taskResult = await sendTask(text, screenshot, domSnapshot);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Something went wrong — give it another try';
       sendToTab(tabId, { action: 'pipeline-error', error: msg });
       return;
     }
 
-    history.push({ role: 'user', content: text });
-    history.push({ role: 'assistant', content: fullText });
+    // Handle response based on type
+    if (taskResult.type === 'answer') {
+      const answerText = taskResult.text || '';
+      sendToTab(tabId, { action: 'pipeline-stage', stage: 'streaming' });
+      sendToTab(tabId, { action: 'stream-chunk', text: answerText });
+      sendToTab(tabId, { action: 'stream-complete', fullText: answerText });
+      sendToTab(tabId, { action: 'pipeline-stage', stage: 'complete' });
 
-    while (history.length > MAX_CONVERSATION_TURNS * 2) {
-      history.shift();
-      history.shift();
-    }
+      const history = getConversation(tabId);
+      history.push({ role: 'user', content: text });
+      history.push({ role: 'assistant', content: answerText });
+      while (history.length > MAX_CONVERSATION_TURNS * 2) {
+        history.shift();
+        history.shift();
+      }
+      sendToTab(tabId, { action: 'conversation-info', info: getConversationInfo(tabId) });
+    } else if (taskResult.type === 'steps') {
+      const stepsText = taskResult.actions
+        ?.map((a, i) => `${i + 1}. ${a.description}`)
+        .join('\n') || 'No steps returned';
+      console.log('[ScreenSense] Follow-up action plan:', taskResult.actions);
 
-    sendToTab(tabId, { action: 'stream-complete', fullText });
-    sendToTab(tabId, { action: 'pipeline-stage', stage: 'complete' });
-    sendToTab(tabId, { action: 'conversation-info', info: getConversationInfo(tabId) });
+      sendToTab(tabId, { action: 'pipeline-stage', stage: 'streaming' });
+      sendToTab(tabId, { action: 'stream-chunk', text: stepsText });
+      sendToTab(tabId, { action: 'stream-complete', fullText: stepsText });
+      sendToTab(tabId, { action: 'pipeline-stage', stage: 'complete' });
 
-    // Generate TTS summary in background (fire-and-forget to avoid blocking follow-ups)
-    if (settings.displayMode !== 'text-only') {
-      generateTtsSummary(fullText, text, keys.groqKey).then((summary) => {
-        sendToTab(tabId, { action: 'tts-summary', summary });
-      }).catch(() => {});
+      const history = getConversation(tabId);
+      history.push({ role: 'user', content: text });
+      history.push({ role: 'assistant', content: stepsText });
+      while (history.length > MAX_CONVERSATION_TURNS * 2) {
+        history.shift();
+        history.shift();
+      }
+      sendToTab(tabId, { action: 'conversation-info', info: getConversationInfo(tabId) });
     }
   } catch (err) {
     console.error('[ScreenSense] Follow-up error:', err);

@@ -67,6 +67,58 @@ export function connectSSE(): EventSource {
   return new EventSource(`${BACKEND_URL}/events`);
 }
 
+export interface TaskResponse {
+  type: 'answer' | 'steps';
+  text?: string;
+  actions?: Array<{
+    action: string;
+    selector?: string;
+    value?: string;
+    url?: string;
+    direction?: string;
+    description: string;
+  }>;
+}
+
+/**
+ * Send a task (command + screenshot + DOM) to the backend for Nova 2 Lite reasoning.
+ */
+export async function sendTask(
+  command: string,
+  screenshotDataUrl: string,
+  domSnapshot: object
+): Promise<TaskResponse> {
+  // Strip the data:image/png;base64, prefix to get raw base64
+  const base64 = screenshotDataUrl.replace(/^data:image\/\w+;base64,/, '');
+
+  const response = await fetch(`${BACKEND_URL}/task`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      command,
+      screenshot: base64,
+      dom_snapshot: domSnapshot,
+    }),
+  });
+
+  if (!response.ok) {
+    let detail = '';
+    try {
+      const errBody = await response.json();
+      detail = errBody?.detail || JSON.stringify(errBody);
+    } catch {
+      detail = `HTTP ${response.status}`;
+    }
+
+    if (response.status === 500 && detail.includes('credentials')) {
+      throw new Error('Backend AWS credentials not configured — check backend/.env');
+    }
+    throw new Error(`Task processing failed — ${detail}`);
+  }
+
+  return await response.json();
+}
+
 /**
  * Check if the backend is reachable.
  */
