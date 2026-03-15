@@ -286,110 +286,83 @@ async function runAgentLoop(
     }
 
     // Execute ONLY the first action, then re-observe with fresh DOM.
-    // Even if Nova returns multiple actions, selectors go stale after each one.
-    {
-      const step = currentActions[0];
-      dbg(`Action: ${step.action} — "${step.description}" selector=${step.selector || 'none'}`);
+    const step = currentActions[0];
+    dbg(`Action: ${step.action} — "${step.description}" selector=${step.selector || 'none'}`);
 
-      // Show intent: what we're about to do
-      sendToTab(tabId, {
-        action: 'bubble-step',
-        stepName: step.description,
-        stepIndex: actionHistory.length + 1,
-        totalSteps: 0, // 0 = unknown total in agent mode
+    // Show intent in bubble
+    sendToTab(tabId, {
+      action: 'bubble-step',
+      stepName: step.description,
+      stepIndex: actionHistory.length + 1,
+      totalSteps: 0,
+    });
+
+    // Execute the action
+    const endActionTimer = dbgTimer(`Execute: ${step.action} "${step.description}"`);
+    let result: { ok: boolean; summary: string; error?: string } | null = null;
+    try {
+      result = await chrome.tabs.sendMessage(tabId, {
+        action: 'execute-action',
+        actionType: step.action,
+        selector: step.selector,
+        value: step.value,
+        url: step.url,
+        direction: step.direction,
+        description: step.description,
       });
-
-      // Execute the action in the content script
-      const endActionTimer = dbgTimer(`Execute: ${step.action} "${step.description}"`);
-      let result: { ok: boolean; summary: string; error?: string };
-      let navigationOccurred = false;
+    } catch {
+      // Content script destroyed by navigation — wait for new page
+      dbg('Content script unreachable — waiting for page reload...');
+      await new Promise(r => setTimeout(r, 2000));
       try {
-        result = await chrome.tabs.sendMessage(tabId, {
-          action: 'execute-action',
-          actionType: step.action,
-          selector: step.selector,
-          value: step.value,
-          url: step.url,
-          direction: step.direction,
-          description: step.description,
-        });
+        await chrome.tabs.sendMessage(tabId, { action: 'scrape-dom' });
+        actionHistory.push({ description: step.description, result: 'Page navigated (action triggered navigation)' });
+        sendToTab(tabId, { action: 'bubble-set-task', task: originalCommand });
+        sendToTab(tabId, { action: 'bubble-state', state: 'executing' });
       } catch {
-        // Content script may have been destroyed by navigation
-        // Wait for the new page to load, then check if we can continue
-        await new Promise(r => setTimeout(r, 2000));
-        try {
-          await chrome.tabs.sendMessage(tabId, { action: 'scrape-dom' });
-          // Content script is back — record the navigation as a successful action
-          actionHistory.push({ description: step.description, result: 'Page navigated (action triggered navigation)' });
-          navigationOccurred = true;
-          break; // Break inner loop — need to re-observe from the new page
-        } catch {
-          // Still unreachable — truly lost
-          sendToTab(tabId, {
-            action: 'pipeline-error',
-            error: 'Action failed: content script unreachable after navigation',
-          });
-          return;
-        }
+        sendToTab(tabId, { action: 'pipeline-error', error: 'Lost connection to page after navigation' });
+        return;
       }
+    }
 
-      if (navigationOccurred) break;
-
+    if (result) {
       endActionTimer();
       dbg(`Result: ok=${result.ok} summary="${result.summary}" error=${result.error || 'none'}`);
 
       if (!result.ok) {
-        dbg(`ACTION FAILED: ${result.error} — will retry with fresh DOM on next iteration`);
-        // Show failure briefly in bubble, then continue
+        dbg(`ACTION FAILED: ${result.error} — will retry with fresh DOM`);
         sendToTab(tabId, {
           action: 'bubble-step',
           stepName: `Failed: ${(result.error || 'Unknown').slice(0, 50)} — retrying...`,
           stepIndex: actionHistory.length + 1,
           totalSteps: 0,
         });
-        // Record the failure so Nova knows to try a different approach
         actionHistory.push({
           description: step.description,
-          result: `FAILED: ${result.error || 'Unknown error'}. Try a different selector or approach.`,
+          result: `FAILED: ${result.error}. Try a different selector or approach.`,
         });
-        // Don't break — fall through to re-observe with fresh DOM
+      } else {
+        // Success — show result and record
+        sendToTab(tabId, {
+          action: 'bubble-step',
+          stepName: result.summary,
+          stepIndex: actionHistory.length + 1,
+          totalSteps: 0,
+        });
+        actionHistory.push({ description: step.description, result: result.summary });
       }
 
-      // Show action result summary in the bubble (EXT-06: action summary reporting)
-      sendToTab(tabId, {
-        action: 'bubble-step',
-        stepName: result.summary,
-        stepIndex: actionHistory.length + 1,
-        totalSteps: 0,
-      });
-
-      // Track what we did for Nova's context in the next iteration
-      actionHistory.push({ description: step.description, result: result.summary });
-
-      // Special handling for navigate actions — the page will reload, destroying the content script.
-      // We need to wait for the new page to fully load before continuing.
-      if (step.action === 'navigate') {
+      // Navigate actions need special handling — wait for new page to load
+      if (step.action === 'navigate' && result.ok) {
         dbg(`NAVIGATE: waiting for page to load... url=${step.url}`);
-        sendToTab(tabId, {
-          action: 'bubble-state',
-          state: 'understanding',
-          label: 'Navigating... waiting for page to load',
-        });
-        // Wait for navigation to start and complete
+        sendToTab(tabId, { action: 'bubble-state', state: 'understanding', label: 'Navigating...' });
         const endNavTimer = dbgTimer('Navigate: page load');
         await new Promise(r => setTimeout(r, 3000));
-        // Poll for content script availability (new page loaded + content script injected)
         let pageReady = false;
         for (let attempt = 0; attempt < 10; attempt++) {
           try {
             await chrome.tabs.sendMessage(tabId, { action: 'scrape-dom' });
             pageReady = true;
-            // Check if navigation was actually blocked (e.g. by beforeunload)
-            const tab = await chrome.tabs.get(tabId);
-            if (tab.url && step.url && !tab.url.includes(new URL(step.url).hostname)) {
-              // Navigation was blocked — page didn't change
-              actionHistory.push({ description: step.description, result: 'Navigation blocked by page' });
-            }
             break;
           } catch {
             await new Promise(r => setTimeout(r, 1000));
@@ -397,44 +370,30 @@ async function runAgentLoop(
         }
         if (!pageReady) {
           dbg('NAVIGATE FAILED: page never loaded');
-          sendToTab(tabId, {
-            action: 'pipeline-error',
-            error: 'Page failed to load after navigation',
-          });
+          sendToTab(tabId, { action: 'pipeline-error', error: 'Page failed to load' });
           return;
         }
         endNavTimer();
-        // Re-establish bubble on new page
         sendToTab(tabId, { action: 'bubble-set-task', task: originalCommand });
         sendToTab(tabId, { action: 'bubble-state', state: 'executing' });
-        sendToTab(tabId, {
-          action: 'bubble-step',
-          stepName: `Navigated to ${step.url}`,
-          stepIndex: actionHistory.length,
-          totalSteps: 0,
-        });
-        dbg(`Navigate complete, bubble re-established. Waiting for page content...`);
-        // Wait for the page to actually render content (AJAX, JS rendering)
-        sendToTab(tabId, {
-          action: 'bubble-state',
-          state: 'understanding',
-          label: 'Page loaded, waiting for content...',
-        });
+        sendToTab(tabId, { action: 'bubble-step', stepName: `Navigated to ${step.url}`, stepIndex: actionHistory.length, totalSteps: 0 });
+        dbg('Navigate complete. Waiting for page content...');
+        sendToTab(tabId, { action: 'bubble-state', state: 'understanding', label: 'Loading page content...' });
         await waitForDomContent(tabId, 8000);
-        // Break inner loop to re-observe from the new page
-        break;
       }
+    }
 
-      // Check for cancellation after each action (fast response to Escape)
-      if (agentLoopCancelled) {
-        agentLoopCancelled = false;
-        sendAgentDone(tabId, actionHistory, 'Cancelled');
-        return;
-      }
+    // Check for cancellation
+    if (agentLoopCancelled) {
+      agentLoopCancelled = false;
+      sendAgentDone(tabId, actionHistory, 'Cancelled');
+      return;
+    }
 
-      // Wait for DOM to settle using MutationObserver
+    // Wait for DOM to settle after action
+    if (step.action !== 'navigate') {
       await waitForDomStable(tabId, 1500, 200);
-    } // end single-action block
+    }
 
     // Re-observe the page with fresh DOM after every action
     dbg('Re-observing page...');
