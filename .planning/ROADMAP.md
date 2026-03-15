@@ -23,6 +23,7 @@ Built during Global Engineering Hackathon 2026. Push-to-talk Chrome extension wi
 - [ ] **Phase 8: Unified Cursor UI** - Live status bubble attached to cursor, fed by SSE events
 - [x] **Phase 9: DOM Automation** - Click, type, navigate, scroll executor with safety allowlist (completed 2026-03-15)
 - [x] **Phase 10: Agent Loop** - Re-observe after each action, continue until Nova says Done (completed 2026-03-15)
+- [ ] **Phase 11: 10x Enhancement** - Smart execution, visual feedback, viewport scraping, AI reasoning display
 
 ## Phase Details
 
@@ -96,6 +97,23 @@ Plans:
 - [ ] 10-01-PLAN.md — Agent loop: backend continue-mode reasoning + frontend observe-act loop (NOVA-04)
 - [ ] 10-02-PLAN.md — Stretch: streaming STT with batch fallback (NOVA-02)
 
+### Phase 11: 10x Enhancement
+**Goal**: Transform the product from functional MVP to polished, intelligent agent. Visual element highlighting, smart error recovery, adaptive timing, viewport-aware scraping, chain-of-thought reasoning display, and user cancel support.
+**Depends on**: Phase 10
+**Requirements**: ENH-01, ENH-02
+**Success Criteria** (what must be TRUE):
+  1. Target elements are visually highlighted (green outline) before the agent clicks or types
+  2. Failed actions retry with scroll-into-view before giving up
+  3. Agent loop uses MutationObserver-based waits instead of fixed delays
+  4. User can cancel agent loop mid-execution with Escape key
+  5. DOM snapshots only include viewport-visible elements (~50% token reduction)
+  6. Nova explains its reasoning before each action batch ("I see the search results, clicking cheapest option")
+  7. Long action chains compress older history to reduce token usage
+**Plans:** 1/2 plans executed
+Plans:
+- [ ] 11-01-PLAN.md — Smart action execution: highlighting, error recovery, adaptive timing, cancel
+- [ ] 11-02-PLAN.md — Intelligence boost: viewport scraping, reasoning display, better prompts
+
 ## Progress
 
 **Execution Order:** Phases execute in numeric order: 6 -> 7 -> 8 -> 9 -> 10
@@ -107,3 +125,4 @@ Plans:
 | 8. Unified Cursor UI | v2.0 | 0/2 | Planning complete | - |
 | 9. DOM Automation | 2/2 | Complete   | 2026-03-15 | - |
 | 10. Agent Loop | 2/2 | Complete   | 2026-03-15 | - |
+| 11. 10x Enhancement | 1/2 | In Progress|  | - |

@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Core Nova Agent
 status: planning
-stopped_at: Completed 10-02-PLAN.md — streaming STT with batch fallback shipped, NOVA-02 stretch goal complete
-last_updated: "2026-03-15T10:26:56.399Z"
+stopped_at: Completed 11-01-PLAN.md — element highlighting, adaptive DOM waits, cancel support, navigation recovery
+last_updated: "2026-03-15T10:35:06.360Z"
 last_activity: 2026-03-14 — Roadmap created for v2.0 Core Nova Agent (phases 6-10)
 progress:
-  total_phases: 5
+  total_phases: 6
   completed_phases: 4
-  total_plans: 10
-  completed_plans: 9
+  total_plans: 12
+  completed_plans: 10
   percent: 50
 ---
 
@@ -60,6 +60,7 @@ Progress: [█████░░░░░] 50%
 | Phase 10-agent-loop P10-01 | 5min | 2 tasks | 4 files |
 | Phase 10-agent-loop P10-01 | 15min | 3 tasks | 4 files |
 | Phase 10-agent-loop P10-02 | 2min | 2 tasks | 4 files |
+| Phase 11-10x-enhancement P11-01 | 3 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -95,6 +96,10 @@ Recent decisions affecting current work:
 - [Phase 10-agent-loop]: 500ms post-action + 800ms post-batch settle times selected to balance responsiveness with DOM/AJAX settle needs
 - [Phase 10-agent-loop]: Pragmatic WebSocket streaming: accumulate full audio over WebSocket to eliminate HTTP multipart upload latency rather than true real-time partial transcripts
 - [Phase 10-agent-loop]: transcribeAudioStreaming() 15s timeout + batch fallback: any WebSocket error silently falls back to proven HTTP batch path — zero regression risk
+- [Phase 11-10x-enhancement]: highlightElement uses 400ms green outline pulse before agent interactions for visual feedback
+- [Phase 11-10x-enhancement]: waitForDomStable replaces fixed 500ms/800ms delays with MutationObserver settle detection (200ms/300ms settle times)
+- [Phase 11-10x-enhancement]: agentLoopCancelled flag checked at loop iteration start AND after each action for fast Escape response
+- [Phase 11-10x-enhancement]: Navigation recovery: 2s wait then scrape-dom probe; break inner loop on success, pipeline-error on second failure
 
 ### Pending Todos
 
@@ -107,6 +112,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-15T10:26:56.397Z
-Stopped at: Completed 10-02-PLAN.md — streaming STT with batch fallback shipped, NOVA-02 stretch goal complete
+Last session: 2026-03-15T10:35:06.357Z
+Stopped at: Completed 11-01-PLAN.md — element highlighting, adaptive DOM waits, cancel support, navigation recovery
 Resume file: None
