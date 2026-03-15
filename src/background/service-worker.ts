@@ -204,26 +204,36 @@ async function waitForDomStable(tabId: number, timeout = 2000, settleMs = 300): 
 async function waitForDomContent(tabId: number, maxWaitMs = 8000): Promise<object> {
   const start = Date.now();
   let lastSnapshot: object = {};
+  let attempt = 0;
 
   while (Date.now() - start < maxWaitMs) {
+    attempt++;
     try {
       const domResponse = await chrome.tabs.sendMessage(tabId, { action: 'scrape-dom' });
+      dbg(`waitForDomContent[${attempt}]: raw response ok=${domResponse?.ok} hasSnapshot=${!!domResponse?.snapshot} type=${typeof domResponse} keys=${domResponse?.snapshot ? Object.keys(domResponse.snapshot).length : 'N/A'} error=${domResponse?.error || 'none'}`);
       if (domResponse?.ok && domResponse.snapshot) {
         const snap = domResponse.snapshot;
-        const hasContent = (snap.buttons?.length > 0) || (snap.inputs?.length > 0) || (snap.links?.length > 5);
-        if (hasContent) {
-          dbg(`waitForDomContent: found content after ${Date.now() - start}ms — buttons=${snap.buttons?.length || 0} inputs=${snap.inputs?.length || 0} links=${snap.links?.length || 0}`);
+        const bCount = snap.buttons?.length || 0;
+        const iCount = snap.inputs?.length || 0;
+        const lCount = snap.links?.length || 0;
+        dbg(`waitForDomContent[${attempt}]: buttons=${bCount} inputs=${iCount} links=${lCount} url=${snap.url || 'none'}`);
+        if (bCount > 0 || iCount > 0 || lCount > 5) {
+          dbg(`waitForDomContent: found content after ${Date.now() - start}ms`);
           return snap;
         }
         lastSnapshot = snap;
+      } else if (domResponse && !domResponse.ok) {
+        dbg(`waitForDomContent[${attempt}]: scrape FAILED: ${domResponse.error}`);
+      } else {
+        dbg(`waitForDomContent[${attempt}]: unexpected response: ${JSON.stringify(domResponse)?.slice(0, 200)}`);
       }
-    } catch {
-      // Content script not ready yet
+    } catch (err) {
+      dbg(`waitForDomContent[${attempt}]: sendMessage threw: ${err}`);
     }
     await new Promise(r => setTimeout(r, 500));
   }
 
-  dbg(`waitForDomContent: timed out after ${maxWaitMs}ms — using last snapshot`);
+  dbg(`waitForDomContent: timed out after ${maxWaitMs}ms (${attempt} attempts) — using last snapshot with keys=${Object.keys(lastSnapshot).length}`);
   return lastSnapshot;
 }
 
