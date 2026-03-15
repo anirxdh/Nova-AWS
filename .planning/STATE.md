@@ -1,3 +1,19 @@
+---
+gsd_state_version: 1.0
+milestone: v2.0
+milestone_name: Core Nova Agent
+status: planning
+stopped_at: Completed 06-01-PLAN.md — FastAPI backend with Nova Sonic STT
+last_updated: "2026-03-15T05:33:05.219Z"
+last_activity: 2026-03-14 — Roadmap created for v2.0 Core Nova Agent (phases 6-10)
+progress:
+  total_phases: 5
+  completed_phases: 0
+  total_plans: 2
+  completed_plans: 1
+  percent: 50
+---
+
 # Project State
 
 ## Project Reference
@@ -14,7 +30,7 @@ Plan: Not started
 Status: Ready to plan
 Last activity: 2026-03-14 — Roadmap created for v2.0 Core Nova Agent (phases 6-10)
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [█████░░░░░] 50%
 
 ## Performance Metrics
 
@@ -34,6 +50,7 @@ Progress: [░░░░░░░░░░] 0%
 - Trend: —
 
 *Updated after each plan completion*
+| Phase 06-backend-foundation P06-01 | 3 | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -45,6 +62,9 @@ Recent decisions affecting current work:
 - [v2.0 init]: FastAPI + boto3 chosen for backend; boto3 is Python-first for AWS Nova
 - [v2.0 init]: DOM content script automation as Nova Act fallback (Nova Act may not target extension tab)
 - [v2.0 init]: Alexa deferred to Plan 2; push-to-talk remains primary interaction
+- [Phase 06-backend-foundation]: boto3 converse_stream used for Nova Sonic STT (amazon.nova-sonic-v1:0) — streams text deltas for batch-mode transcript
+- [Phase 06-backend-foundation]: CORS wildcard (allow_origins=['*']) for dev — Chrome extensions lack stable origin, restrict in prod
+- [Phase 06-backend-foundation]: Service layer pattern: boto3/external calls in services/, routers handle only HTTP concerns
 
 ### Pending Todos
 
@@ -57,6 +77,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-14
-Stopped at: Roadmap written — no plans created yet
+Last session: 2026-03-15T05:33:05.214Z
+Stopped at: Completed 06-01-PLAN.md — FastAPI backend with Nova Sonic STT
 Resume file: None
