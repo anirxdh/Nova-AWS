@@ -5,3 +5,7 @@ dist/
 .env.*
 !.env.example
 !backend/.env.example
+__pycache__/
+*.pyc
+node_modules/
+dist/
