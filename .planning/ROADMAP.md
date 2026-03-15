@@ -49,7 +49,7 @@ Plans:
   2. User asks "Add this to cart" and backend returns a structured list of action steps (not yet executed)
   3. Screenshot sent to Nova excludes the extension's own overlay bubble
   4. DOM snapshot includes visible buttons, links, inputs, and forms with CSS selectors
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 Plans:
 - [ ] 07-01-PLAN.md — Nova 2 Lite reasoning service + POST /task endpoint
 - [ ] 07-02-PLAN.md — DOM scraper, overlay-safe screenshot, and pipeline wiring
@@ -94,7 +94,7 @@ Plans:
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 6. Backend Foundation | 2/2 | Complete   | 2026-03-15 | - |
-| 7. Nova Reasoning + DOM Context | v2.0 | 0/2 | Planning complete | - |
+| 7. Nova Reasoning + DOM Context | 1/2 | In Progress|  | - |
 | 8. Unified Cursor UI | v2.0 | 0/TBD | Not started | - |
 | 9. DOM Automation | v2.0 | 0/TBD | Not started | - |
 | 10. Agent Loop | v2.0 | 0/TBD | Not started | - |

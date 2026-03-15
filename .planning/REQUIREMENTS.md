@@ -9,14 +9,14 @@
 
 - [x] **BACK-01**: FastAPI server scaffold with CORS, health check, `.env` for AWS credentials
 - [x] **BACK-02**: POST /transcribe endpoint — receives audio, calls Nova Sonic STT, returns transcript
-- [ ] **BACK-03**: POST /task endpoint — receives command + screenshot + DOM snapshot, calls Nova 2 Lite, returns answer or structured action steps
+- [x] **BACK-03**: POST /task endpoint — receives command + screenshot + DOM snapshot, calls Nova 2 Lite, returns answer or structured action steps
 - [x] **BACK-04**: SSE streaming for real-time status updates to extension (Transcribing, Understanding, Planning, step names, Done)
 
 ### AI Integration
 
 - [x] **NOVA-01**: Nova Sonic STT via boto3 (batch mode — full audio sent after key release)
 - [ ] **NOVA-02**: Nova Sonic STT streaming mode (stretch goal if time permits)
-- [ ] **NOVA-03**: Nova 2 Lite reasoning — takes command + screenshot (base64) + DOM snapshot (structured JSON), returns answer or structured action steps
+- [x] **NOVA-03**: Nova 2 Lite reasoning — takes command + screenshot (base64) + DOM snapshot (structured JSON), returns answer or structured action steps
 - [ ] **NOVA-04**: Agent loop — after each executed action, extension sends action summary + new screenshot to Nova 2 Lite; Nova decides continue or done; repeat until "Done"
 
 ### Extension
@@ -63,11 +63,11 @@
 |-------------|-------|--------|
 | BACK-01 | Phase 6 | Complete |
 | BACK-02 | Phase 6 | Complete |
-| BACK-03 | Phase 7 | Pending |
+| BACK-03 | Phase 7 | Complete |
 | BACK-04 | Phase 6 + Phase 8 | Complete |
 | NOVA-01 | Phase 6 | Complete |
 | NOVA-02 | Phase 10 | Pending |
-| NOVA-03 | Phase 7 | Pending |
+| NOVA-03 | Phase 7 | Complete |
 | NOVA-04 | Phase 10 | Pending |
 | EXT-01 | Phase 6 | Complete |
 | EXT-02 | Phase 7 | Pending |
