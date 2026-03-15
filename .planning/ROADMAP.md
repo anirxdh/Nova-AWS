@@ -22,7 +22,7 @@ Built during Global Engineering Hackathon 2026. Push-to-talk Chrome extension wi
 - [x] **Phase 7: Nova Reasoning + DOM Context** - Nova 2 Lite Q&A using screenshot + DOM snapshot via backend (completed 2026-03-15)
 - [ ] **Phase 8: Unified Cursor UI** - Live status bubble attached to cursor, fed by SSE events
 - [x] **Phase 9: DOM Automation** - Click, type, navigate, scroll executor with safety allowlist (completed 2026-03-15)
-- [ ] **Phase 10: Agent Loop** - Re-observe after each action, continue until Nova says Done
+- [x] **Phase 10: Agent Loop** - Re-observe after each action, continue until Nova says Done (completed 2026-03-15)
 
 ## Phase Details
 
@@ -91,7 +91,7 @@ Plans:
   2. After every action Nova re-evaluates the updated screenshot and either produces the next step or returns Done
   3. The cursor bubble reflects each new step name as the loop iterates
   4. If Nova Sonic streaming mode is available, transcription begins before key release (stretch -- gracefully falls back to batch if not)
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 Plans:
 - [ ] 10-01-PLAN.md — Agent loop: backend continue-mode reasoning + frontend observe-act loop (NOVA-04)
 - [ ] 10-02-PLAN.md — Stretch: streaming STT with batch fallback (NOVA-02)
@@ -106,4 +106,4 @@ Plans:
 | 7. Nova Reasoning + DOM Context | 2/2 | Complete   | 2026-03-15 | - |
 | 8. Unified Cursor UI | v2.0 | 0/2 | Planning complete | - |
 | 9. DOM Automation | 2/2 | Complete   | 2026-03-15 | - |
-| 10. Agent Loop | 1/2 | In Progress|  | - |
+| 10. Agent Loop | 2/2 | Complete   | 2026-03-15 | - |
