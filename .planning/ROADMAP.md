@@ -91,7 +91,10 @@ Plans:
   2. After every action Nova re-evaluates the updated screenshot and either produces the next step or returns Done
   3. The cursor bubble reflects each new step name as the loop iterates
   4. If Nova Sonic streaming mode is available, transcription begins before key release (stretch -- gracefully falls back to batch if not)
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 10-01-PLAN.md — Agent loop: backend continue-mode reasoning + frontend observe-act loop (NOVA-04)
+- [ ] 10-02-PLAN.md — Stretch: streaming STT with batch fallback (NOVA-02)
 
 ## Progress
 
@@ -103,4 +106,4 @@ Plans:
 | 7. Nova Reasoning + DOM Context | 2/2 | Complete   | 2026-03-15 | - |
 | 8. Unified Cursor UI | v2.0 | 0/2 | Planning complete | - |
 | 9. DOM Automation | 2/2 | Complete   | 2026-03-15 | - |
-| 10. Agent Loop | v2.0 | 0/TBD | Not started | - |
+| 10. Agent Loop | v2.0 | 0/2 | Planning complete | - |
