@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Core Nova Agent
 status: planning
-stopped_at: Completed 07-02-PLAN.md — Extension pipeline DOM scraper, overlay-safe screenshot, Nova POST /task wiring
-last_updated: "2026-03-15T06:10:06.320Z"
+stopped_at: Completed 08-01-PLAN.md — Unified CursorBubble component with 9 states and BubbleState type
+last_updated: "2026-03-15T06:26:36.579Z"
 last_activity: 2026-03-14 — Roadmap created for v2.0 Core Nova Agent (phases 6-10)
 progress:
   total_phases: 5
   completed_phases: 2
-  total_plans: 4
-  completed_plans: 4
+  total_plans: 6
+  completed_plans: 5
   percent: 50
 ---
 
@@ -54,6 +54,7 @@ Progress: [█████░░░░░] 50%
 | Phase 06-backend-foundation P06-02 | 2.5min | 2 tasks | 6 files |
 | Phase 07-nova-reasoning-dom-context P01 | 3min | 2 tasks | 3 files |
 | Phase 07-nova-reasoning-dom-context P07-02 | 9m | 3 tasks | 7 files |
+| Phase 08-unified-cursor-ui P08-01 | 4min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -75,6 +76,8 @@ Recent decisions affecting current work:
 - [Phase 07-nova-reasoning-dom-context]: DOM scraper limits payload: 50 buttons/links, 30 inputs, 10 forms, 3000 chars text for POST /task
 - [Phase 07-nova-reasoning-dom-context]: groqKey gate removed from pipeline; Nova via backend is primary AI path; groq-vision retained for Phase 8+ migration
 - [Phase 07-nova-reasoning-dom-context]: steps response type displays numbered action descriptions in overlay; execution deferred to Phase 9
+- [Phase 08-unified-cursor-ui]: Single CursorBubble class replaces both Overlay and ListeningIndicator — one 1232-line component manages all 9 interaction states
+- [Phase 08-unified-cursor-ui]: Bubble width is state-aware: 180px for status states, 380px for answering — edge-detection uses per-state width
 
 ### Pending Todos
 
@@ -87,6 +90,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-15T06:05:46.486Z
-Stopped at: Completed 07-02-PLAN.md — Extension pipeline DOM scraper, overlay-safe screenshot, Nova POST /task wiring
+Last session: 2026-03-15T06:26:36.578Z
+Stopped at: Completed 08-01-PLAN.md — Unified CursorBubble component with 9 states and BubbleState type
 Resume file: None
