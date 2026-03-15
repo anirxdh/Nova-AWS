@@ -35,7 +35,10 @@ Built during Global Engineering Hackathon 2026. Push-to-talk Chrome extension wi
   2. User holds backtick, speaks, releases — audio travels to backend, Nova Sonic transcribes it, transcript appears in extension console
   3. Backend emits SSE events (Transcribing, Done) that the extension receives and logs
   4. Extension no longer calls Groq APIs directly — all AI calls go through FastAPI
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 06-01-PLAN.md — FastAPI scaffold + POST /transcribe with Nova Sonic STT
+- [ ] 06-02-PLAN.md — SSE event streaming + extension service worker rewire
 
 ### Phase 7: Nova Reasoning + DOM Context
 **Goal**: Nova 2 Lite receives a user command plus full page context (screenshot + DOM snapshot) and returns either a plain answer or a structured action plan
@@ -49,18 +52,18 @@ Built during Global Engineering Hackathon 2026. Push-to-talk Chrome extension wi
 **Plans**: TBD
 
 ### Phase 8: Unified Cursor UI
-**Goal**: A single cursor-following bubble replaces all current static overlays and shows live state transitions (Listening → Transcribing → Understanding → Planning → Done) driven by SSE events from the backend
+**Goal**: A single cursor-following bubble replaces all current static overlays and shows live state transitions (Listening -> Transcribing -> Understanding -> Planning -> Done) driven by SSE events from the backend
 **Depends on**: Phase 7
 **Requirements**: BACK-04, EXT-04
 **Success Criteria** (what must be TRUE):
   1. A bubble appears near the cursor the moment the user presses backtick and moves with the mouse throughout the interaction
-  2. The bubble label changes in real-time as SSE events arrive: Listening → Transcribing → Understanding → Planning → Done
+  2. The bubble label changes in real-time as SSE events arrive: Listening -> Transcribing -> Understanding -> Planning -> Done
   3. When Nova returns an answer, the streaming text renders inside the bubble (not a separate overlay)
   4. When steps are executing, the bubble shows the current step name
 **Plans**: TBD
 
 ### Phase 9: DOM Automation
-**Goal**: The extension executes action steps returned by Nova — clicking elements, typing into inputs, navigating to URLs, scrolling — safely and with a full audit trail per action
+**Goal**: The extension executes action steps returned by Nova -- clicking elements, typing into inputs, navigating to URLs, scrolling -- safely and with a full audit trail per action
 **Depends on**: Phase 8
 **Requirements**: EXT-05, EXT-06, EXT-07
 **Success Criteria** (what must be TRUE):
@@ -78,16 +81,16 @@ Built during Global Engineering Hackathon 2026. Push-to-talk Chrome extension wi
   1. User says "Find the cheapest USB-C cable on this page and add it to cart" and the extension executes multiple steps without further user input until the item is in the cart
   2. After every action Nova re-evaluates the updated screenshot and either produces the next step or returns Done
   3. The cursor bubble reflects each new step name as the loop iterates
-  4. If Nova Sonic streaming mode is available, transcription begins before key release (stretch — gracefully falls back to batch if not)
+  4. If Nova Sonic streaming mode is available, transcription begins before key release (stretch -- gracefully falls back to batch if not)
 **Plans**: TBD
 
 ## Progress
 
-**Execution Order:** Phases execute in numeric order: 6 → 7 → 8 → 9 → 10
+**Execution Order:** Phases execute in numeric order: 6 -> 7 -> 8 -> 9 -> 10
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 6. Backend Foundation | v2.0 | 0/TBD | Not started | - |
+| 6. Backend Foundation | v2.0 | 0/2 | Planning complete | - |
 | 7. Nova Reasoning + DOM Context | v2.0 | 0/TBD | Not started | - |
 | 8. Unified Cursor UI | v2.0 | 0/TBD | Not started | - |
 | 9. DOM Automation | v2.0 | 0/TBD | Not started | - |
