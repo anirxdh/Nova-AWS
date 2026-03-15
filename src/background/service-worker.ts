@@ -338,13 +338,20 @@ async function runAgentLoop(
       dbg(`Result: ok=${result.ok} summary="${result.summary}" error=${result.error || 'none'}`);
 
       if (!result.ok) {
-        dbg(`ACTION FAILED: ${result.error}`);
-        // Action failed — stop the loop
-        sendToTab(tabId, {
-          action: 'pipeline-error',
-          error: `Action failed: ${result.error || 'Unknown error'}`,
+        dbg(`ACTION FAILED: ${result.error} — will retry with fresh DOM on next iteration`);
+        // Don't stop — record the failure and let Nova try a different approach
+        actionHistory.push({
+          description: step.description,
+          result: `FAILED: ${result.error || 'Unknown error'}. Try a different selector or approach.`,
         });
-        return;
+        sendToTab(tabId, {
+          action: 'bubble-step',
+          stepName: `Retrying: ${step.description}`,
+          stepIndex: actionHistory.length,
+          totalSteps: 0,
+        });
+        // Break inner loop to re-observe and ask Nova for a different approach
+        break;
       }
 
       // Show action result summary in the bubble (EXT-06: action summary reporting)

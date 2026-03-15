@@ -105,10 +105,12 @@ function buildSelector(el: Element): string {
     return `[data-testid="${CSS.escape(testId)}"]`;
   }
 
-  // Priority 3: data-asin (Amazon product identifier)
-  const asin = el.getAttribute('data-asin');
-  if (asin) {
-    return `[data-asin="${CSS.escape(asin)}"]`;
+  // Priority 3: common data-* attributes (product IDs, video IDs, etc.)
+  for (const attr of ['data-asin', 'data-video-id', 'data-id', 'data-product-id', 'data-item-id']) {
+    const val = el.getAttribute(attr);
+    if (val && val.length > 0 && val.length < 60) {
+      return `[${attr}="${CSS.escape(val)}"]`;
+    }
   }
 
   // Priority 4: aria-label (if reasonably short)
@@ -117,14 +119,33 @@ function buildSelector(el: Element): string {
     return `[aria-label="${CSS.escape(ariaLabel)}"]`;
   }
 
-  // Priority 5: name attribute (useful for inputs)
+  // Priority 5: title attribute (unique on many elements)
+  const title = el.getAttribute('title');
+  if (title && title.length > 2 && title.length < 80) {
+    const tag = el.tagName.toLowerCase();
+    return `${tag}[title="${CSS.escape(title)}"]`;
+  }
+
+  // Priority 6: href attribute for links (much more reliable than classes)
+  if (el.tagName === 'A') {
+    const href = el.getAttribute('href');
+    if (href && href.length < 150 && href !== '#' && href !== '/') {
+      // Use href substring match for cleaner selectors
+      const hrefKey = href.includes('?') ? href.split('?')[0] : href;
+      if (hrefKey.length > 1 && hrefKey.length < 80) {
+        return `a[href*="${CSS.escape(hrefKey)}"]`;
+      }
+    }
+  }
+
+  // Priority 6: name attribute (useful for inputs)
   const name = el.getAttribute('name');
   if (name) {
     const tag = el.tagName.toLowerCase();
     return `${tag}[name="${CSS.escape(name)}"]`;
   }
 
-  // Priority 6: tag + class path with nth-child
+  // Priority 7: tag + class path with nth-of-type
   const tag = el.tagName.toLowerCase();
   const classes = Array.from(el.classList)
     .filter(c => !c.match(/^[a-z]{1,3}_[a-zA-Z0-9_-]+$/)) // skip CSS-module hashes
