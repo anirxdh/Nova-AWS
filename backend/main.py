@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 load_dotenv()
 
+from backend.routers.events import router as events_router
 from backend.routers.transcribe import router
 
 app = FastAPI(title="ScreenSense Backend")
@@ -25,6 +26,7 @@ async def health():
 
 
 app.include_router(router)
+app.include_router(events_router)
 
 
 if __name__ == "__main__":
