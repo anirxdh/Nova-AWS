@@ -1,5 +1,16 @@
 export type DisplayMode = 'both' | 'audio-only' | 'text-only';
 
+export type BubbleState =
+  | 'idle'           // hidden, no bubble
+  | 'listening'      // waveform animation near cursor (user is speaking)
+  | 'transcribing'   // "Transcribing..." label
+  | 'understanding'  // "Understanding..." label
+  | 'planning'       // "Planning..." label
+  | 'executing'      // "Clicking Add to Cart..." — dynamic step name
+  | 'answering'      // Streaming text response inside bubble
+  | 'error'          // Error message display
+  | 'done';          // Brief "Done" before auto-dismiss
+
 export type ExplanationLevel = 'kid' | 'school' | 'college' | 'phd' | 'executive';
 
 export interface ExtensionSettings {
@@ -52,4 +63,9 @@ export type MessageType =
   | { action: 'conversation-info'; info: ConversationInfo }
   | { action: 'scrape-dom' }
   | { action: 'hide-overlay' }
-  | { action: 'show-overlay' };
+  | { action: 'show-overlay' }
+  | { action: 'bubble-state'; state: BubbleState; label?: string }
+  | { action: 'bubble-answer-chunk'; text: string }
+  | { action: 'bubble-answer-done'; fullText: string }
+  | { action: 'bubble-step'; stepName: string; stepIndex: number; totalSteps: number }
+  | { action: 'amplitude-data'; data: number[] };
