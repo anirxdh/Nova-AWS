@@ -37,8 +37,8 @@ Built during Global Engineering Hackathon 2026. Push-to-talk Chrome extension wi
   4. Extension no longer calls Groq APIs directly — all AI calls go through FastAPI
 **Plans:** 2/2 plans complete
 Plans:
-- [ ] 06-01-PLAN.md — FastAPI scaffold + POST /transcribe with Nova Sonic STT
-- [ ] 06-02-PLAN.md — SSE event streaming + extension service worker rewire
+- [x] 06-01-PLAN.md — FastAPI scaffold + POST /transcribe with Nova Sonic STT
+- [x] 06-02-PLAN.md — SSE event streaming + extension service worker rewire
 
 ### Phase 7: Nova Reasoning + DOM Context
 **Goal**: Nova 2 Lite receives a user command plus full page context (screenshot + DOM snapshot) and returns either a plain answer or a structured action plan
@@ -49,7 +49,10 @@ Plans:
   2. User asks "Add this to cart" and backend returns a structured list of action steps (not yet executed)
   3. Screenshot sent to Nova excludes the extension's own overlay bubble
   4. DOM snapshot includes visible buttons, links, inputs, and forms with CSS selectors
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 07-01-PLAN.md — Nova 2 Lite reasoning service + POST /task endpoint
+- [ ] 07-02-PLAN.md — DOM scraper, overlay-safe screenshot, and pipeline wiring
 
 ### Phase 8: Unified Cursor UI
 **Goal**: A single cursor-following bubble replaces all current static overlays and shows live state transitions (Listening -> Transcribing -> Understanding -> Planning -> Done) driven by SSE events from the backend
@@ -91,7 +94,7 @@ Plans:
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 6. Backend Foundation | 2/2 | Complete   | 2026-03-15 | - |
-| 7. Nova Reasoning + DOM Context | v2.0 | 0/TBD | Not started | - |
+| 7. Nova Reasoning + DOM Context | v2.0 | 0/2 | Planning complete | - |
 | 8. Unified Cursor UI | v2.0 | 0/TBD | Not started | - |
 | 9. DOM Automation | v2.0 | 0/TBD | Not started | - |
 | 10. Agent Loop | v2.0 | 0/TBD | Not started | - |
