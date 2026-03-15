@@ -110,6 +110,18 @@ export class ListeningIndicator {
     }
   }
 
+  hideForScreenshot(): void {
+    if (this.container) {
+      this.container.style.display = 'none';
+    }
+  }
+
+  showAfterScreenshot(): void {
+    if (this.container) {
+      this.container.style.display = '';
+    }
+  }
+
   hide(): void {
     if (!this.visible || !this.shadowRoot) return;
 

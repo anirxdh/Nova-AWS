@@ -49,4 +49,7 @@ export type MessageType =
   | { action: 'follow-up'; text: string }
   | { action: 'clear-conversation' }
   | { action: 'get-conversation-info' }
-  | { action: 'conversation-info'; info: ConversationInfo };
+  | { action: 'conversation-info'; info: ConversationInfo }
+  | { action: 'scrape-dom' }
+  | { action: 'hide-overlay' }
+  | { action: 'show-overlay' };

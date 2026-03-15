@@ -3,6 +3,7 @@ import { initShortcutHandler } from './shortcut-handler';
 import { ListeningIndicator } from './listening-indicator';
 import { Overlay } from './overlay';
 import { stop as stopTts } from './tts';
+import { scrapeDom } from './dom-scraper';
 
 const isTopFrame = window === window.top;
 
@@ -83,7 +84,27 @@ async function onRelease(event: Event): Promise<void> {
 }
 
 // Listen for messages from background (pipeline stages, streaming, errors, amplitude)
-chrome.runtime.onMessage.addListener((message) => {
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  // Handle scrape-dom first — needs async sendResponse
+  if (message.action === 'scrape-dom') {
+    const snapshot = scrapeDom();
+    sendResponse({ ok: true, snapshot });
+    return true; // keep message channel open for sendResponse
+  }
+
+  // Handle overlay visibility for screenshot capture
+  if (message.action === 'hide-overlay') {
+    overlay.hideForScreenshot();
+    indicator.hideForScreenshot();
+    sendResponse({ ok: true });
+    return false;
+  } else if (message.action === 'show-overlay') {
+    overlay.showAfterScreenshot();
+    indicator.showAfterScreenshot();
+    sendResponse({ ok: true });
+    return false;
+  }
+
   if (message.action === 'pipeline-stage') {
     overlay.updateStage(message.stage, message.transcript);
   } else if (message.action === 'stream-chunk') {

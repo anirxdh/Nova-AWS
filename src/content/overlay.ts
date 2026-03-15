@@ -805,6 +805,20 @@ export class Overlay {
     return this.visible;
   }
 
+  /** Temporarily hide for screenshot capture (no animation, no cleanup) */
+  hideForScreenshot(): void {
+    if (this.container) {
+      this.container.style.display = 'none';
+    }
+  }
+
+  /** Re-show after screenshot capture */
+  showAfterScreenshot(): void {
+    if (this.container) {
+      this.container.style.display = '';
+    }
+  }
+
   private dismissImmediate(): void {
     this.cleanup();
     this.visible = false;
