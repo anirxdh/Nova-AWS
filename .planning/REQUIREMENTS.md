@@ -32,7 +32,7 @@
 ### Enhancement (Phase 11)
 
 - [x] **ENH-01**: Smart action execution — element highlighting, scroll-into-view retry, MutationObserver-based adaptive timing, Escape-to-cancel, navigation-aware error handling
-- [ ] **ENH-02**: Intelligence boost — viewport-aware DOM scraping with bounding boxes, chain-of-thought reasoning in prompts, reasoning display in bubble UI, action history compression for long chains
+- [x] **ENH-02**: Intelligence boost — viewport-aware DOM scraping with bounding boxes, chain-of-thought reasoning in prompts, reasoning display in bubble UI, action history compression for long chains
 
 ## v2.0 Requirements — Plan 2: Alexa + Polish (Deferred)
 

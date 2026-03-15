@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Core Nova Agent
 status: planning
-stopped_at: Completed 11-01-PLAN.md — element highlighting, adaptive DOM waits, cancel support, navigation recovery
-last_updated: "2026-03-15T10:35:06.360Z"
+stopped_at: Completed 11-02-PLAN.md — viewport-aware DOM scraping, chain-of-thought reasoning, history compression shipped
+last_updated: "2026-03-15T10:35:56.707Z"
 last_activity: 2026-03-14 — Roadmap created for v2.0 Core Nova Agent (phases 6-10)
 progress:
   total_phases: 6
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 12
-  completed_plans: 10
+  completed_plans: 11
   percent: 50
 ---
 
@@ -61,6 +61,7 @@ Progress: [█████░░░░░] 50%
 | Phase 10-agent-loop P10-01 | 15min | 3 tasks | 4 files |
 | Phase 10-agent-loop P10-02 | 2min | 2 tasks | 4 files |
 | Phase 11-10x-enhancement P11-01 | 3 | 2 tasks | 4 files |
+| Phase 11-10x-enhancement P11-02 | 12min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -100,6 +101,9 @@ Recent decisions affecting current work:
 - [Phase 11-10x-enhancement]: waitForDomStable replaces fixed 500ms/800ms delays with MutationObserver settle detection (200ms/300ms settle times)
 - [Phase 11-10x-enhancement]: agentLoopCancelled flag checked at loop iteration start AND after each action for fast Escape response
 - [Phase 11-10x-enhancement]: Navigation recovery: 2s wait then scrape-dom probe; break inner loop on success, pipeline-error on second failure
+- [Phase 11-10x-enhancement]: Viewport margin 200px for isInViewport — includes elements just outside viewport that may scroll into view
+- [Phase 11-10x-enhancement]: History compression at >5 actions: summarize older, keep last 3 in full — prevents token bloat in long agent loops
+- [Phase 11-10x-enhancement]: reasoning field optional in TypeScript TaskResponse — backward compatible with Nova responses lacking it
 
 ### Pending Todos
 
@@ -112,6 +116,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-15T10:35:06.357Z
-Stopped at: Completed 11-01-PLAN.md — element highlighting, adaptive DOM waits, cancel support, navigation recovery
+Last session: 2026-03-15T10:35:56.705Z
+Stopped at: Completed 11-02-PLAN.md — viewport-aware DOM scraping, chain-of-thought reasoning, history compression shipped
 Resume file: None
