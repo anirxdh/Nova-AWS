@@ -151,11 +151,11 @@ MULTI-STEP TASK EXAMPLES:
 - "Add cheapest USB-C cable to cart" → search → find cheapest → click product → click Add to Cart → done
 - "Write an email to john about meeting" → click compose → type to field → type subject → type body → click send → done
 - "Find and open the first search result" → type query → click search → click first result → done
-- "Order quest protein bars from Amazon" (started on different site) → navigate to Amazon → search for quest protein bars → click product → add to cart → done
+- "Order protein bars from a shopping site" (started on different site) → navigate to site → search → click product → add to cart → done
 
 NAVIGATION CONTEXT:
 - If a previous action was "Page navigated", you are now on a NEW page. Look at the current URL and DOM to understand where you are.
-- After navigation, continue with the next step of the user's goal (e.g., search for the product on Amazon).
+- After navigation, continue with the next step of the user's goal (e.g., search for the product).
 - The DOM snapshot and screenshot now show the NEW page, not the old one."""
 
 SYSTEM_PROMPT = """You are ScreenSense, a screen-aware AI execution agent in a Chrome extension.
@@ -194,28 +194,22 @@ SUPPORTED ACTIONS (use exact selectors from DOM snapshot):
   - To scroll to a specific element: {"action": "scroll", "selector": "<from DOM snapshot>", "description": "Scroll to X"}
 - extract: {"action": "extract", "selector": "<from DOM snapshot>", "description": "Get text from X"}
 
-EXAMPLES:
+EXAMPLES (generic — adapt selectors from the actual DOM snapshot):
 User: "search for wireless headphones"
-DOM has: inputs: [{"selector": "#twotabsearchtextbox", "type": "text", "value": ""}]
-Response: {"type": "steps", "reasoning": "I see the Amazon search box. I'll type the query and submit.", "actions": [{"action": "type", "selector": "#twotabsearchtextbox", "value": "wireless headphones", "description": "Type 'wireless headphones' into search box"}, {"action": "click", "selector": "#nav-search-submit-button", "description": "Click the search button"}]}
+DOM has: inputs: [{"selector": "#search-input", "type": "text", "value": ""}]
+Response: {"type": "steps", "reasoning": "I see a search box. I'll type the query.", "actions": [{"action": "type", "selector": "#search-input", "value": "wireless headphones", "description": "Type 'wireless headphones' into search box"}]}
 
 User: "scroll down to see reviews"
-Response: {"type": "steps", "reasoning": "The user wants to scroll down to see reviews below the fold.", "actions": [{"action": "scroll", "direction": "down", "description": "Scroll down to see more content"}]}
-
-User: "scroll to the bottom of the page"
-Response: {"type": "steps", "reasoning": "The user wants to see the bottom of the page.", "actions": [{"action": "scroll", "direction": "bottom", "description": "Scroll to bottom of page"}]}
+Response: {"type": "steps", "reasoning": "The user wants to scroll down.", "actions": [{"action": "scroll", "direction": "down", "description": "Scroll down"}]}
 
 User: "what is the price?"
-Response: {"type": "answer", "reasoning": "I can see the price in the product details.", "text": "The price is $29.99"}
-
-User: "add the highest rated USB-C cable to my cart"
-Response: {"type": "steps", "reasoning": "First I need to search for USB-C cables, then I'll find the highest rated one.", "actions": [{"action": "type", "selector": "#twotabsearchtextbox", "value": "USB-C cable", "description": "Type 'USB-C cable' into search box"}, {"action": "click", "selector": "#nav-search-submit-button", "description": "Click the search button"}]}
+Response: {"type": "answer", "reasoning": "I can see the price in the page content.", "text": "The price is $29.99"}
 
 User: "order quest protein bars from Amazon" (user is on a different website)
-Response: {"type": "steps", "reasoning": "The user wants to order from Amazon but we're not on Amazon. I'll navigate there first.", "actions": [{"action": "navigate", "url": "https://www.amazon.com", "description": "Navigate to Amazon"}]}
+Response: {"type": "steps", "reasoning": "We're not on Amazon. I'll navigate there first.", "actions": [{"action": "navigate", "url": "https://www.amazon.com", "description": "Navigate to Amazon"}]}
 
 User: "go to youtube and search for coding tutorials"
-Response: {"type": "steps", "reasoning": "The user wants to go to YouTube. I'll navigate there.", "actions": [{"action": "navigate", "url": "https://www.youtube.com", "description": "Navigate to YouTube"}]}
+Response: {"type": "steps", "reasoning": "I'll navigate to YouTube.", "actions": [{"action": "navigate", "url": "https://www.youtube.com", "description": "Navigate to YouTube"}]}
 
 CRITICAL RULES FOR MULTI-STEP TASKS:
 - If the user's command involves multiple steps (search + click + add to cart), plan the FIRST batch of actions and the agent loop will call you again after execution to continue.

@@ -139,6 +139,25 @@ const BUBBLE_STYLES = `
 .screensense-step-name {
   font-weight: 500;
   color: rgba(255, 255, 255, 0.9);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Pulsing border during active execution */
+.screensense-bubble.state-executing {
+  border-color: rgba(48, 209, 88, 0.3);
+  animation: exec-pulse 2s ease-in-out infinite;
+}
+
+.screensense-bubble.state-understanding {
+  border-color: rgba(10, 132, 255, 0.3);
+  animation: exec-pulse 2s ease-in-out infinite;
+}
+
+@keyframes exec-pulse {
+  0%, 100% { border-color: rgba(255, 255, 255, 0.15); }
+  50% { border-color: rgba(48, 209, 88, 0.4); }
 }
 
 .screensense-reasoning {
@@ -528,7 +547,7 @@ const BAR_COUNT = 10;
 const MIN_HEIGHT = 2;
 const MAX_HEIGHT = 18;
 const CURSOR_OFFSET_Y = 20;
-const BUBBLE_WIDTH_STATUS = 180;
+const BUBBLE_WIDTH_STATUS = 200;
 const BUBBLE_WIDTH_ANSWER = 444;
 const BUBBLE_MAX_HEIGHT_ANSWER = 500;
 
@@ -676,6 +695,12 @@ export class CursorBubble {
       return;
     }
 
+    // Auto-show bubble if not visible (e.g., after page navigation destroyed old bubble)
+    if (!this.visible && (state === 'executing' || state === 'understanding' || state === 'done' || state === 'error')) {
+      // Show at top-right corner as default position (no cursor coords available)
+      this.show(window.innerWidth - 220, 60);
+    }
+
     if (!this.bubbleEl) return;
 
     this.currentState = state;
@@ -744,6 +769,11 @@ export class CursorBubble {
    * Update step display during 'executing' state.
    */
   setStep(name: string, index: number, total: number): void {
+    // Auto-show if not visible (after navigation)
+    if (!this.visible) {
+      this.show(window.innerWidth - 220, 60);
+      this.setState('executing');
+    }
     if (!this.bubbleEl) return;
 
     if (this.currentState !== 'executing') {
@@ -752,8 +782,13 @@ export class CursorBubble {
 
     const countEl = this.bubbleEl.querySelector('.screensense-step-count');
     const nameEl = this.bubbleEl.querySelector('.screensense-step-name');
-    if (countEl) countEl.textContent = `Step ${index}/${total}`;
+    if (countEl) countEl.textContent = total > 0 ? `Step ${index}/${total}` : `Step ${index}`;
     if (nameEl) nameEl.textContent = name;
+
+    // Track completed action results for done summary (skip intent descriptions)
+    if (/^(Clicked|Typed|Navigat|Scrolled|Extracted)/.test(name)) {
+      this.addCompletedStep(name);
+    }
   }
 
   /**
