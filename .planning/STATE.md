@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Core Nova Agent
 status: planning
-stopped_at: Completed 09-02-PLAN.md — service worker step orchestrator with dual bubble-step messaging and EXT-05/EXT-06 complete
-last_updated: "2026-03-15T09:54:27.269Z"
+stopped_at: Completed 10-01 Tasks 1-2 — awaiting human-verify checkpoint for agent loop end-to-end test
+last_updated: "2026-03-15T10:18:06.781Z"
 last_activity: 2026-03-14 — Roadmap created for v2.0 Core Nova Agent (phases 6-10)
 progress:
   total_phases: 5
   completed_phases: 3
-  total_plans: 8
-  completed_plans: 7
+  total_plans: 10
+  completed_plans: 8
   percent: 50
 ---
 
@@ -57,6 +57,7 @@ Progress: [█████░░░░░] 50%
 | Phase 08-unified-cursor-ui P08-01 | 4min | 2 tasks | 2 files |
 | Phase 09-dom-automation P09-01 | 2min | 2 tasks | 3 files |
 | Phase 09-dom-automation P09-02 | 10min | 2 tasks | 1 files |
+| Phase 10-agent-loop P10-01 | 5min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -84,6 +85,9 @@ Recent decisions affecting current work:
 - [Phase 09-dom-automation]: actionTypeText function name avoids collision with destructured actionType variable in executeAction
 - [Phase 09-dom-automation]: executeSteps sends two bubble-step messages per action (intent then result.summary) for EXT-06 action summary reporting
 - [Phase 09-dom-automation]: Conversation history stores step descriptions (the plan), not execution outcomes — bubble is the visibility channel for execution results
+- [Phase 10-agent-loop]: reason_continue() JSON parse fallback wraps plain-text as {type: done} — conservative termination if Nova can't signal more steps
+- [Phase 10-agent-loop]: totalSteps=0 in bubble-step during agent loop signals unknown total in agent mode vs fixed-plan mode
+- [Phase 10-agent-loop]: runAgentLoop replaces executeSteps: observe-act-re-observe pattern with Nova deciding done/steps/answer after each action batch
 
 ### Pending Todos
 
@@ -96,6 +100,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-15T09:52:54.512Z
-Stopped at: Completed 09-02-PLAN.md — service worker step orchestrator with dual bubble-step messaging and EXT-05/EXT-06 complete
+Last session: 2026-03-15T10:18:06.780Z
+Stopped at: Completed 10-01 Tasks 1-2 — awaiting human-verify checkpoint for agent loop end-to-end test
 Resume file: None

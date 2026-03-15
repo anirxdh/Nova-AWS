@@ -17,7 +17,7 @@
 - [x] **NOVA-01**: Nova Sonic STT via boto3 (batch mode — full audio sent after key release)
 - [ ] **NOVA-02**: Nova Sonic STT streaming mode (stretch goal if time permits)
 - [x] **NOVA-03**: Nova 2 Lite reasoning — takes command + screenshot (base64) + DOM snapshot (structured JSON), returns answer or structured action steps
-- [ ] **NOVA-04**: Agent loop — after each executed action, extension sends action summary + new screenshot to Nova 2 Lite; Nova decides continue or done; repeat until "Done"
+- [x] **NOVA-04**: Agent loop — after each executed action, extension sends action summary + new screenshot to Nova 2 Lite; Nova decides continue or done; repeat until "Done"
 
 ### Extension
 
@@ -68,7 +68,7 @@
 | NOVA-01 | Phase 6 | Complete |
 | NOVA-02 | Phase 10 | Pending |
 | NOVA-03 | Phase 7 | Complete |
-| NOVA-04 | Phase 10 | Pending |
+| NOVA-04 | Phase 10 | Complete |
 | EXT-01 | Phase 6 | Complete |
 | EXT-02 | Phase 7 | Complete |
 | EXT-03 | Phase 7 | Complete |
