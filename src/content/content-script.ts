@@ -1,7 +1,6 @@
 import './content.css';
 import { initShortcutHandler } from './shortcut-handler';
-import { ListeningIndicator } from './listening-indicator';
-import { Overlay } from './overlay';
+import { CursorBubble } from './cursor-bubble';
 import { stop as stopTts } from './tts';
 import { scrapeDom } from './dom-scraper';
 
@@ -15,39 +14,28 @@ if (!isTopFrame) {
   // Stop here for iframes — shortcut handler is enough
 } else {
 
-const indicator = new ListeningIndicator();
-const overlay = new Overlay();
-let mouseMoveHandler: ((e: MouseEvent) => void) | null = null;
+const bubble = new CursorBubble();
 
 let lastCursorX = 0;
 let lastCursorY = 0;
+
+// Lightweight mouse tracking for initial show position only
+// CursorBubble handles its own tracking internally once shown
+document.addEventListener('mousemove', (e: MouseEvent) => {
+  lastCursorX = e.clientX;
+  lastCursorY = e.clientY;
+}, { passive: true });
 
 // Safe message sender — prevents unhandled promise rejections
 function sendMessage(msg: Record<string, unknown>): void {
   chrome.runtime.sendMessage(msg).catch(() => {});
 }
 
-// Wire up overlay callbacks for follow-up and clear
-overlay.setCallbacks(
+// Wire up bubble callbacks for follow-up and clear
+bubble.setCallbacks(
   (text: string) => sendMessage({ action: 'follow-up', text }),
   () => sendMessage({ action: 'clear-conversation' })
 );
-
-function startCursorTracking(): void {
-  mouseMoveHandler = (e: MouseEvent) => {
-    lastCursorX = e.clientX;
-    lastCursorY = e.clientY;
-    indicator.updatePosition(e.clientX, e.clientY);
-  };
-  document.addEventListener('mousemove', mouseMoveHandler, { passive: true });
-}
-
-function stopCursorTracking(): void {
-  if (mouseMoveHandler) {
-    document.removeEventListener('mousemove', mouseMoveHandler);
-    mouseMoveHandler = null;
-  }
-}
 
 async function onHold(event: Event): Promise<void> {
   const detail = (event as CustomEvent).detail;
@@ -57,11 +45,9 @@ async function onHold(event: Event): Promise<void> {
   // Stop TTS when user starts recording again
   stopTts();
 
-  // Show the waveform indicator
-  indicator.show(lastCursorX, lastCursorY);
-
-  // Start cursor tracking for indicator
-  startCursorTracking();
+  // Show the bubble at cursor position in listening state
+  bubble.show(lastCursorX, lastCursorY);
+  bubble.setState('listening');
 }
 
 async function onRelease(event: Event): Promise<void> {
@@ -70,17 +56,14 @@ async function onRelease(event: Event): Promise<void> {
   // If this is an auto-stop synthetic release, skip (already handled)
   if (detail?.autoStop) return;
 
-  // Hide the waveform indicator
-  indicator.hide();
-  stopCursorTracking();
-
-  // If overlay is visible (voice follow-up), prepare it for new content
-  if (overlay.isVisible()) {
-    overlay.prepareForFollowUp();
+  // Ensure bubble is visible
+  if (!bubble.isVisible()) {
+    bubble.show(lastCursorX, lastCursorY);
   } else {
-    // Show overlay at cursor position
-    overlay.show(lastCursorX, lastCursorY);
+    // If bubble was already visible (follow-up context), prepare for new content
+    bubble.prepareForFollowUp();
   }
+  // Do NOT set state here — SSE events from the backend will drive state transitions
 }
 
 // Listen for messages from background (pipeline stages, streaming, errors, amplitude)
@@ -92,34 +75,33 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true; // keep message channel open for sendResponse
   }
 
-  // Handle overlay visibility for screenshot capture
+  // Handle bubble visibility for screenshot capture
   if (message.action === 'hide-overlay') {
-    overlay.hideForScreenshot();
-    indicator.hideForScreenshot();
+    bubble.hideForScreenshot();
     sendResponse({ ok: true });
     return false;
   } else if (message.action === 'show-overlay') {
-    overlay.showAfterScreenshot();
-    indicator.showAfterScreenshot();
+    bubble.showAfterScreenshot();
     sendResponse({ ok: true });
     return false;
   }
 
-  if (message.action === 'pipeline-stage') {
-    overlay.updateStage(message.stage, message.transcript);
-  } else if (message.action === 'stream-chunk') {
-    overlay.appendChunk(message.text);
-  } else if (message.action === 'stream-complete') {
-    overlay.onStreamComplete();
-  } else if (message.action === 'tts-summary') {
-    overlay.speakSummary(message.summary);
-  } else if (message.action === 'pipeline-error') {
-    overlay.showError(message.error);
-  } else if (message.action === 'conversation-info') {
-    overlay.updateConversationInfo(message.info);
+  if (message.action === 'bubble-state') {
+    bubble.setState(message.state, message.label);
+  } else if (message.action === 'bubble-answer-chunk') {
+    bubble.appendChunk(message.text);
+  } else if (message.action === 'bubble-answer-done') {
+    bubble.onAnswerDone();
+  } else if (message.action === 'bubble-step') {
+    bubble.setStep(message.stepName, message.stepIndex, message.totalSteps);
   } else if (message.action === 'amplitude-data') {
-    // Forward amplitude data to the waveform indicator
-    indicator.updateAmplitude(new Uint8Array(message.data));
+    bubble.updateAmplitude(new Uint8Array(message.data));
+  } else if (message.action === 'tts-summary') {
+    bubble.speakSummary(message.summary);
+  } else if (message.action === 'conversation-info') {
+    bubble.updateConversationInfo(message.info);
+  } else if (message.action === 'pipeline-error') {
+    bubble.showError(message.error);
   }
 });
 
