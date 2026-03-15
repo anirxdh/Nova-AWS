@@ -77,7 +77,7 @@ Plans:
   2. User says "Search for wireless headphones" and the extension types the query into the search box and submits
   3. Unknown or unsafe action types are rejected before execution and the user sees an error state in the bubble
   4. After each action the bubble shows a brief human-readable summary of what was done and to which element
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 Plans:
 - [ ] 09-01-PLAN.md — Action executor module with safety allowlist, sanitizer, and content-script handler
 - [ ] 09-02-PLAN.md — Service worker step execution orchestrator with bubble progress
@@ -102,5 +102,5 @@ Plans:
 | 6. Backend Foundation | 2/2 | Complete   | 2026-03-15 | - |
 | 7. Nova Reasoning + DOM Context | 2/2 | Complete   | 2026-03-15 | - |
 | 8. Unified Cursor UI | v2.0 | 0/2 | Planning complete | - |
-| 9. DOM Automation | v2.0 | 0/2 | Planning complete | - |
+| 9. DOM Automation | 1/2 | In Progress|  | - |
 | 10. Agent Loop | v2.0 | 0/TBD | Not started | - |

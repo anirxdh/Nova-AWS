@@ -25,9 +25,9 @@
 - [x] **EXT-02**: DOM scraper — captures full page structure (buttons, links, inputs, forms, text content) with selectors and visibility status
 - [x] **EXT-03**: Hide overlay/bubble before screenshot capture, re-show after
 - [x] **EXT-04**: Unified cursor-following UI — waveform, status updates, step execution updates, Q&A streaming answers, all attached to mouse movement; replaces current static overlay
-- [ ] **EXT-05**: DOM automation executor — executes click, type, navigate, extract, scroll actions from backend step plans
+- [x] **EXT-05**: DOM automation executor — executes click, type, navigate, extract, scroll actions from backend step plans
 - [ ] **EXT-06**: Action summary reporter — after each action, describes what was done, which element, and why
-- [ ] **EXT-07**: Action safety allowlist — validate action types against allowlist, sanitize selectors, reject unknown actions
+- [x] **EXT-07**: Action safety allowlist — validate action types against allowlist, sanitize selectors, reject unknown actions
 
 ## v2.0 Requirements — Plan 2: Alexa + Polish (Deferred)
 
@@ -73,9 +73,9 @@
 | EXT-02 | Phase 7 | Complete |
 | EXT-03 | Phase 7 | Complete |
 | EXT-04 | Phase 8 | Complete |
-| EXT-05 | Phase 9 | Pending |
+| EXT-05 | Phase 9 | Complete |
 | EXT-06 | Phase 9 | Pending |
-| EXT-07 | Phase 9 | Pending |
+| EXT-07 | Phase 9 | Complete |
 
 **Coverage:**
 - Plan 1 requirements: 15 total
