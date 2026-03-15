@@ -1,23 +1,39 @@
 import asyncio
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 
 from backend.services.event_bus import event_bus
 from backend.services.nova_reasoning import reason_about_page, reason_continue
 
 
 class TaskRequest(BaseModel):
-    command: str       # User's voice command text
-    screenshot: str    # Base64-encoded PNG screenshot
+    command: str = Field(..., max_length=5000)       # User's voice command text
+    screenshot: str = Field(..., max_length=15_000_000)    # Base64-encoded PNG screenshot (~10MB base64)
     dom_snapshot: dict  # Structured DOM data (buttons, links, inputs, etc.)
+
+    @field_validator('dom_snapshot')
+    @classmethod
+    def validate_snapshot_size(cls, v):
+        import json
+        if len(json.dumps(v)) > 2_000_000:  # 2MB limit
+            raise ValueError('DOM snapshot too large (max 2MB)')
+        return v
 
 
 class TaskContinueRequest(BaseModel):
-    original_command: str          # The user's original voice command
+    original_command: str = Field(..., max_length=5000)          # The user's original voice command
     action_history: list[dict]     # [{"description": "...", "result": "..."}]
-    screenshot: str                # Base64-encoded PNG screenshot (AFTER actions)
+    screenshot: str = Field(..., max_length=15_000_000)                # Base64-encoded PNG screenshot (AFTER actions)
     dom_snapshot: dict             # Structured DOM data after last action
+
+    @field_validator('dom_snapshot')
+    @classmethod
+    def validate_snapshot_size(cls, v):
+        import json
+        if len(json.dumps(v)) > 2_000_000:  # 2MB limit
+            raise ValueError('DOM snapshot too large (max 2MB)')
+        return v
 
 
 router = APIRouter()
@@ -38,7 +54,7 @@ async def process_task(request: TaskRequest):
         )
         await event_bus.emit(
             "status",
-            {"stage": "task_complete", "type": result["type"]},
+            {"stage": "task_complete", "type": result.get("type", "unknown")},
         )
         return result
     except ValueError as e:
@@ -77,7 +93,7 @@ async def continue_task(request: TaskContinueRequest):
         )
         await event_bus.emit(
             "status",
-            {"stage": "task_complete", "type": result["type"]},
+            {"stage": "task_complete", "type": result.get("type", "unknown")},
         )
         return result
     except ValueError as e:

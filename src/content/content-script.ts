@@ -58,8 +58,7 @@ async function onHold(event: Event): Promise<void> {
   // If bubble is visible and in executing/understanding state, cancel the agent loop first
   if (bubble.isVisible()) {
     chrome.runtime.sendMessage({ action: 'cancel-agent-loop' }).catch(() => {});
-    // Brief delay for cancel to propagate before starting new recording
-    await new Promise(r => setTimeout(r, 100));
+    // Don't await — let cancel propagate in background
   }
 
   // Show the bubble at cursor position in listening state
@@ -110,6 +109,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       // Start the settle timer (in case no mutations happen — page is already stable)
       timer = setTimeout(() => {
         if (!settled) {
+          settled = true;
           observer.disconnect();
           resolve({ stable: true });
         }
@@ -151,11 +151,15 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true; // keep message channel open for async sendResponse
   }
 
-  // Handle scrape-dom — needs async sendResponse
+  // Handle scrape-dom — synchronous
   if (message.action === 'scrape-dom') {
-    const snapshot = scrapeDom();
-    sendResponse({ ok: true, snapshot });
-    return true; // keep message channel open for sendResponse
+    try {
+      const snapshot = scrapeDom();
+      sendResponse({ ok: true, snapshot });
+    } catch (e) {
+      sendResponse({ ok: false, error: (e as Error).message });
+    }
+    return false;
   }
 
   // Handle bubble visibility for screenshot capture

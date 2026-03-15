@@ -22,7 +22,8 @@ async def stream_events():
                     "data": payload["data"],
                 }
         except asyncio.CancelledError:
+            pass
+        finally:
             event_bus.unsubscribe(queue)
-            raise
 
     return EventSourceResponse(event_generator())

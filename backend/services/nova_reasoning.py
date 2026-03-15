@@ -5,6 +5,39 @@ import os
 import boto3
 from botocore.exceptions import ClientError, NoCredentialsError, PartialCredentialsError
 
+_bedrock_client = None
+
+
+def _get_bedrock_client():
+    """Return a cached Bedrock runtime client, creating one if needed."""
+    global _bedrock_client
+    if _bedrock_client is not None:
+        return _bedrock_client
+
+    aws_key = os.getenv("AWS_ACCESS_KEY_ID")
+    aws_secret = os.getenv("AWS_SECRET_ACCESS_KEY")
+    aws_region = os.getenv("AWS_REGION", "us-east-1")
+
+    if not aws_key or not aws_secret or aws_key == "your-key-here":
+        raise ValueError(
+            "AWS credentials not configured — set AWS_ACCESS_KEY_ID and "
+            "AWS_SECRET_ACCESS_KEY in backend/.env"
+        )
+
+    try:
+        client = boto3.client(
+            "bedrock-runtime",
+            region_name=aws_region,
+            aws_access_key_id=aws_key,
+            aws_secret_access_key=aws_secret,
+        )
+    except Exception as e:
+        raise ValueError(f"Failed to create AWS client: {e}") from e
+
+    _bedrock_client = client
+    return _bedrock_client
+
+
 CONTINUE_SYSTEM_PROMPT = """You are ScreenSense, a screen-aware AI execution agent in a Chrome extension.
 You are CONTINUING a multi-step task that is already in progress.
 
@@ -146,25 +179,7 @@ def reason_about_page(command: str, screenshot_base64: str, dom_snapshot: dict) 
         - {"type": "answer", "text": "..."} for questions
         - {"type": "steps", "actions": [...]} for task commands
     """
-    aws_key = os.getenv("AWS_ACCESS_KEY_ID")
-    aws_secret = os.getenv("AWS_SECRET_ACCESS_KEY")
-    aws_region = os.getenv("AWS_REGION", "us-east-1")
-
-    if not aws_key or not aws_secret or aws_key == "your-key-here":
-        raise ValueError(
-            "AWS credentials not configured — set AWS_ACCESS_KEY_ID and "
-            "AWS_SECRET_ACCESS_KEY in backend/.env"
-        )
-
-    try:
-        client = boto3.client(
-            "bedrock-runtime",
-            region_name=aws_region,
-            aws_access_key_id=aws_key,
-            aws_secret_access_key=aws_secret,
-        )
-    except Exception as e:
-        raise ValueError(f"Failed to create AWS client: {e}") from e
+    client = _get_bedrock_client()
 
     # Decode the base64 screenshot to raw bytes for the Bedrock image block
     try:
@@ -184,7 +199,7 @@ def reason_about_page(command: str, screenshot_base64: str, dom_snapshot: dict) 
             }
         },
         {
-            "text": f"DOM Snapshot:\n{json.dumps(dom_snapshot, indent=2)}"
+            "text": f"DOM Snapshot:\n{json.dumps(dom_snapshot)}"
         },
         {
             "text": f"User command: {command}"
@@ -209,6 +224,9 @@ def reason_about_page(command: str, screenshot_base64: str, dom_snapshot: dict) 
         # Attempt to parse the response as JSON
         try:
             parsed = json.loads(response_text)
+            if isinstance(parsed, list):
+                # LLM returned a list of actions — wrap as steps
+                return {"type": "steps", "actions": parsed}
             if isinstance(parsed, dict) and "type" in parsed:
                 return parsed
             # Valid JSON but missing 'type' field — wrap it
@@ -258,25 +276,7 @@ def reason_continue(
         - {"type": "steps", "actions": [...]} when more actions are needed
         - {"type": "answer", "text": "..."} when Nova wants to communicate something
     """
-    aws_key = os.getenv("AWS_ACCESS_KEY_ID")
-    aws_secret = os.getenv("AWS_SECRET_ACCESS_KEY")
-    aws_region = os.getenv("AWS_REGION", "us-east-1")
-
-    if not aws_key or not aws_secret or aws_key == "your-key-here":
-        raise ValueError(
-            "AWS credentials not configured — set AWS_ACCESS_KEY_ID and "
-            "AWS_SECRET_ACCESS_KEY in backend/.env"
-        )
-
-    try:
-        client = boto3.client(
-            "bedrock-runtime",
-            region_name=aws_region,
-            aws_access_key_id=aws_key,
-            aws_secret_access_key=aws_secret,
-        )
-    except Exception as e:
-        raise ValueError(f"Failed to create AWS client: {e}") from e
+    client = _get_bedrock_client()
 
     # Decode the base64 screenshot to raw bytes for the Bedrock image block
     try:
@@ -316,7 +316,7 @@ def reason_continue(
             }
         },
         {
-            "text": f"DOM Snapshot:\n{json.dumps(dom_snapshot, indent=2)}"
+            "text": f"DOM Snapshot:\n{json.dumps(dom_snapshot)}"
         },
         {
             "text": (
@@ -345,6 +345,9 @@ def reason_continue(
         # Attempt to parse the response as JSON
         try:
             parsed = json.loads(response_text)
+            if isinstance(parsed, list):
+                # LLM returned a list of actions — wrap as steps
+                return {"type": "steps", "actions": parsed}
             if isinstance(parsed, dict) and "type" in parsed:
                 return parsed
             # Valid JSON but missing 'type' field — assume done (continuation fallback)

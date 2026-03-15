@@ -66,6 +66,7 @@ async def transcribe_stream(ws: WebSocket):
     await ws.accept()
     chunks: list = []
     mime_type = "audio/webm"
+    total_bytes = 0
 
     try:
         while True:
@@ -89,6 +90,10 @@ async def transcribe_stream(ws: WebSocket):
                     mime_type = msg["mime_type"]
 
             elif "bytes" in data and data["bytes"] is not None:
+                total_bytes += len(data["bytes"])
+                if total_bytes > 25 * 1024 * 1024:
+                    await ws.send_json({"error": "Audio too large (max 25MB)"})
+                    break
                 chunks.append(data["bytes"])
 
         # Transcribe the accumulated chunks

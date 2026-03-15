@@ -27,6 +27,7 @@ function onKeyDown(event: KeyboardEvent): void {
   // Prevent key repeat from re-triggering
   if (keyHeld) return;
 
+  console.log('[ScreenSense] KEY DOWN - backtick held');
   keyHeld = true;
 
   // Prevent the character from being typed
@@ -62,6 +63,7 @@ function onKeyDown(event: KeyboardEvent): void {
 function onKeyUp(event: KeyboardEvent): void {
   if (event.key !== shortcutKey) return;
 
+  console.log('[ScreenSense] KEY UP - backtick released');
   event.preventDefault();
   event.stopImmediatePropagation();
 

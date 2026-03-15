@@ -11,7 +11,7 @@ class EventBus:
 
     def subscribe(self) -> asyncio.Queue:
         """Create a new subscriber queue."""
-        q: asyncio.Queue = asyncio.Queue()
+        q: asyncio.Queue = asyncio.Queue(maxsize=100)
         self._subscribers.append(q)
         return q
 
@@ -26,7 +26,10 @@ class EventBus:
             "data": data if isinstance(data, str) else json.dumps(data),
         }
         for q in self._subscribers:
-            await q.put(payload)
+            try:
+                q.put_nowait(payload)
+            except asyncio.QueueFull:
+                pass  # skip full queues (dead subscribers)
 
 
 # Singleton instance

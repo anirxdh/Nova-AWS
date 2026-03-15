@@ -124,8 +124,7 @@ function buildSelector(el: Element): string {
   // Priority 4: aria-label (if reasonably short)
   const ariaLabel = el.getAttribute('aria-label');
   if (ariaLabel && ariaLabel.length < 80) {
-    const escaped = ariaLabel.replace(/"/g, '\\"');
-    return `[aria-label="${escaped}"]`;
+    return `[aria-label="${CSS.escape(ariaLabel)}"]`;
   }
 
   // Priority 5: name attribute (useful for inputs)
@@ -153,7 +152,7 @@ function buildSelector(el: Element): string {
       const parentSel = parent.id
         ? `#${CSS.escape(parent.id)}`
         : parent.tagName.toLowerCase();
-      return `${parentSel} > ${tag}${classes}:nth-child(${idx})`;
+      return `${parentSel} > ${tag}${classes}:nth-of-type(${idx})`;
     }
   }
 

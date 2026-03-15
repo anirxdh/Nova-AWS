@@ -10,16 +10,20 @@ export async function captureScreenshot(tabId?: number): Promise<string> {
     }
   }
 
-  const dataUrl = await chrome.tabs.captureVisibleTab({ format: 'png' });
+  try {
+    const dataUrl = await chrome.tabs.captureVisibleTab({ format: 'png' });
 
-  // Re-show the overlay after capture
-  if (tabId) {
-    try {
-      await chrome.tabs.sendMessage(tabId, { action: 'show-overlay' });
-    } catch {
-      // Content script may not be loaded
+    // Re-show the overlay after capture
+    if (tabId) {
+      await chrome.tabs.sendMessage(tabId, { action: 'show-overlay' }).catch(() => {});
     }
-  }
 
-  return dataUrl;
+    return dataUrl;
+  } catch (err) {
+    // Re-show overlay even on error
+    if (tabId) {
+      await chrome.tabs.sendMessage(tabId, { action: 'show-overlay' }).catch(() => {});
+    }
+    throw err;
+  }
 }

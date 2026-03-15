@@ -17,6 +17,9 @@ let offscreenReady = false;
 let swAmpLogged = false;
 let agentLoopCancelled = false;
 let agentLoopRunning = false;
+let pipelineRunning = false;
+let agentLoopTabId: number | null = null;
+let ensureOffscreenInFlight: Promise<void> | null = null;
 
 // Track whether the offscreen document has been set up and recording started
 // so that stop-recording waits for start-recording to complete.
@@ -51,6 +54,12 @@ let offscreenReadyResolve: (() => void) | null = null;
 let offscreenReadyPromise: Promise<void> | null = null;
 
 async function ensureOffscreen(): Promise<void> {
+  if (ensureOffscreenInFlight) return ensureOffscreenInFlight;
+  ensureOffscreenInFlight = _ensureOffscreen().finally(() => { ensureOffscreenInFlight = null; });
+  return ensureOffscreenInFlight;
+}
+
+async function _ensureOffscreen(): Promise<void> {
   const chrome_ = chrome as any;
 
   const contexts = await chrome_.runtime.getContexts({
@@ -130,7 +139,7 @@ function broadcastStateChange(state: ExtensionState): void {
       chrome.tabs.sendMessage(tabs[0].id, {
         action: 'state-changed' as const,
         state,
-      });
+      }).catch(() => {});
     }
   });
 }
@@ -176,6 +185,7 @@ async function runAgentLoop(
     return;
   }
   agentLoopRunning = true;
+  agentLoopTabId = tabId;
 
   try {
   // Show the task in the bubble
@@ -284,6 +294,12 @@ async function runAgentLoop(
           try {
             await chrome.tabs.sendMessage(tabId, { action: 'scrape-dom' });
             pageReady = true;
+            // Check if navigation was actually blocked (e.g. by beforeunload)
+            const tab = await chrome.tabs.get(tabId);
+            if (tab.url && step.url && !tab.url.includes(new URL(step.url).hostname)) {
+              // Navigation was blocked — page didn't change
+              actionHistory.push({ description: step.description, result: 'Navigation blocked by page' });
+            }
             break;
           } catch {
             await new Promise(r => setTimeout(r, 1000));
@@ -356,6 +372,13 @@ async function runAgentLoop(
       return;
     }
 
+    // Check for cancellation immediately after in-flight fetch returns
+    if (agentLoopCancelled) {
+      agentLoopCancelled = false;
+      sendAgentDone(tabId, actionHistory, 'Cancelled');
+      return;
+    }
+
     console.log(`[ScreenSense][loop] iter=${iteration} Nova response type:`, continueResult.type);
 
     // Send reasoning to bubble if present
@@ -405,10 +428,16 @@ async function runAgentLoop(
   sendAgentDone(tabId, actionHistory);
   } finally {
     agentLoopRunning = false;
+    agentLoopTabId = null;
   }
 }
 
 async function runPipeline(tabId: number, audioBase64: string, mimeType: string): Promise<void> {
+  if (pipelineRunning || agentLoopRunning) {
+    sendToTab(tabId, { action: 'pipeline-error', error: 'Please wait — still processing your previous request' });
+    return;
+  }
+  pipelineRunning = true;
   console.log('[ScreenSense][SW] runPipeline started — tabId:', tabId, 'audioLen:', audioBase64.length, 'mime:', mimeType);
   try {
     // Capture screenshot (overlay hidden during capture)
@@ -524,6 +553,7 @@ async function runPipeline(tabId: number, audioBase64: string, mimeType: string)
     console.error('[ScreenSense] Pipeline error:', err);
     sendToTab(tabId, { action: 'pipeline-error', error: 'Something went wrong — give it another try' });
   } finally {
+    pipelineRunning = false;
     currentState = 'idle';
     resolveIconState();
     broadcastStateChange('idle');
@@ -532,6 +562,11 @@ async function runPipeline(tabId: number, audioBase64: string, mimeType: string)
 
 /** Run a follow-up text query (no audio transcription needed) */
 async function runFollowUp(tabId: number, text: string): Promise<void> {
+  if (pipelineRunning || agentLoopRunning) {
+    sendToTab(tabId, { action: 'pipeline-error', error: 'Please wait — still processing your previous request' });
+    return;
+  }
+  pipelineRunning = true;
   currentState = 'processing';
   broadcastStateChange('processing');
 
@@ -615,6 +650,7 @@ async function runFollowUp(tabId: number, text: string): Promise<void> {
     console.error('[ScreenSense] Follow-up error:', err);
     sendToTab(tabId, { action: 'pipeline-error', error: 'Something went wrong — give it another try' });
   } finally {
+    pipelineRunning = false;
     currentState = 'idle';
     resolveIconState();
     broadcastStateChange('idle');
@@ -638,6 +674,9 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
 
 chrome.tabs.onRemoved.addListener((tabId) => {
   conversations.delete(tabId);
+  if (agentLoopTabId !== null && tabId === agentLoopTabId) {
+    agentLoopCancelled = true;
+  }
 });
 
 // ─── Backend SSE Connection ───
@@ -650,6 +689,7 @@ function initSSE(): void {
   sseConnection = connectSSE();
   sseConnection.addEventListener('status', (event: MessageEvent) => {
     try {
+      if (agentLoopRunning) return;
       const data = JSON.parse(event.data);
       console.log('[ScreenSense] SSE status:', data.stage, data);
 
@@ -852,9 +892,9 @@ chrome.runtime.onMessage.addListener(
       }
 
       case 'capture-screenshot':
-        captureScreenshot().then((dataUrl) => {
+        captureScreenshot(sender.tab?.id).then((dataUrl) => {
           sendResponse({ ok: true, dataUrl });
-        });
+        }).catch((err) => sendResponse({ ok: false, error: String(err) }));
         return true;
 
       case 'follow-up':

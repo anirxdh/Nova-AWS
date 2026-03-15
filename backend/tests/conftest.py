@@ -20,6 +20,15 @@ def mock_aws_credentials():
         yield
 
 
+@pytest.fixture(autouse=True)
+def reset_bedrock_client_cache():
+    """Reset the cached Bedrock client before each test so mocks take effect."""
+    import backend.services.nova_reasoning as nr
+    nr._bedrock_client = None
+    yield
+    nr._bedrock_client = None
+
+
 @pytest.fixture()
 def client():
     """Create a FastAPI TestClient that can be used to make requests."""

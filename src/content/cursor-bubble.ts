@@ -569,6 +569,7 @@ export class CursorBubble {
 
   // Timers
   private autoDismissTimer: ReturnType<typeof setTimeout> | null = null;
+  private dismissTimer: ReturnType<typeof setTimeout> | null = null;
   private ttsPollTimer: ReturnType<typeof setInterval> | null = null;
 
   // Event handlers (stored for removal)
@@ -607,6 +608,10 @@ export class CursorBubble {
    * Call setState() immediately after to set the initial state.
    */
   show(cursorX: number, cursorY: number): void {
+    if (this.dismissTimer) {
+      clearTimeout(this.dismissTimer);
+      this.dismissTimer = null;
+    }
     if (this.visible) {
       this.dismissImmediate();
     }
@@ -858,7 +863,8 @@ export class CursorBubble {
     this.bubbleEl.classList.add('fade-out');
     this.bubbleEl.classList.remove('visible');
 
-    setTimeout(() => {
+    this.dismissTimer = setTimeout(() => {
+      this.dismissTimer = null;
       this.cleanup();
     }, 180);
 
@@ -1138,7 +1144,7 @@ export class CursorBubble {
     const dismissDelay = this.completedSteps.length > 0 ? 5000 : 2000;
     this.autoDismissTimer = setTimeout(() => {
       this.dismiss();
-    }, 2000);
+    }, dismissDelay);
   }
 
   private renderAnsweringState(): void {
@@ -1460,6 +1466,10 @@ export class CursorBubble {
   }
 
   private dismissImmediate(): void {
+    if (this.dismissTimer) {
+      clearTimeout(this.dismissTimer);
+      this.dismissTimer = null;
+    }
     this.cleanup();
     this.visible = false;
   }
@@ -1468,6 +1478,11 @@ export class CursorBubble {
     stopTts();
     this.stopTracking();
     this.stopDrag();
+
+    if (this.dismissTimer) {
+      clearTimeout(this.dismissTimer);
+      this.dismissTimer = null;
+    }
 
     if (this.escapeHandler) {
       document.removeEventListener('keydown', this.escapeHandler, true);

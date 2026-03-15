@@ -34,7 +34,7 @@ async function highlightElement(el: Element): Promise<void> {
   htmlEl.style.transition = 'outline 0.15s ease';
   htmlEl.style.outline = '2px solid rgba(48, 209, 88, 0.9)';
   htmlEl.style.outlineOffset = '2px';
-  await new Promise(r => setTimeout(r, 400));
+  await new Promise(r => setTimeout(r, 150));
   htmlEl.style.outline = originalOutline;
   htmlEl.style.transition = originalTransition;
   htmlEl.style.outlineOffset = '';
@@ -52,15 +52,20 @@ async function scrollIntoViewAndRetry(selector: string): Promise<Element | null>
 
 let lastActionTime = 0;
 const MIN_ACTION_INTERVAL_MS = 300;
+let actionQueue: Promise<void> = Promise.resolve();
 
 async function enforceRateLimit(): Promise<void> {
-  const now = Date.now();
-  const elapsed = now - lastActionTime;
-  if (elapsed < MIN_ACTION_INTERVAL_MS) {
-    const waitMs = MIN_ACTION_INTERVAL_MS - elapsed;
-    await new Promise<void>((resolve) => setTimeout(resolve, waitMs));
-  }
-  lastActionTime = Date.now();
+  return new Promise<void>((resolve) => {
+    actionQueue = actionQueue.then(async () => {
+      const now = Date.now();
+      const elapsed = now - lastActionTime;
+      if (elapsed < MIN_ACTION_INTERVAL_MS) {
+        await new Promise<void>((r) => setTimeout(r, MIN_ACTION_INTERVAL_MS - elapsed));
+      }
+      lastActionTime = Date.now();
+      resolve();
+    });
+  });
 }
 
 // ─── Selector sanitizer ───────────────────────────────────────────────────────
@@ -139,7 +144,13 @@ async function actionTypeText(selector: string, value: string): Promise<ActionRe
 
   const input = el as HTMLInputElement;
   input.focus();
-  input.value = value;
+  // Use native setter to work with React/Vue controlled inputs
+  const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+  if (nativeInputValueSetter) {
+    nativeInputValueSetter.call(input, value);
+  } else {
+    input.value = value;
+  }
   input.dispatchEvent(new Event('input', { bubbles: true }));
   input.dispatchEvent(new Event('change', { bubbles: true }));
   return { ok: true, summary: `Typed '${value.slice(0, 30)}' into ${selector}` };

@@ -30,37 +30,38 @@ function cleanForSpeech(text: string): string {
     .replace(/#{1,6}\s*/g, '');
 }
 
-/** ElevenLabs TTS */
+/** ElevenLabs TTS — routes through service worker to avoid page CSP blocking */
 async function speakElevenLabs(text: string, apiKey: string): Promise<void> {
   const clean = cleanForSpeech(text);
 
   try {
-    const response = await fetch(
-      `https://api.elevenlabs.io/v1/text-to-speech/${ELEVENLABS_VOICE_ID}`,
-      {
-        method: 'POST',
-        headers: {
-          'xi-api-key': apiKey,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+    // Send to service worker which has unrestricted network access
+    const response: { ok: boolean; audioBase64?: string; error?: string } = await new Promise((resolve) => {
+      chrome.runtime.sendMessage(
+        {
+          action: 'elevenlabs-tts',
           text: clean,
-          model_id: ELEVENLABS_MODEL,
-          voice_settings: {
-            stability: 0.5,
-            similarity_boost: 0.75,
-          },
-        }),
-      }
-    );
+          apiKey,
+          voiceId: ELEVENLABS_VOICE_ID,
+          modelId: ELEVENLABS_MODEL,
+        },
+        (resp) => resolve(resp || { ok: false, error: 'No response' })
+      );
+    });
 
-    if (!response.ok) {
-      console.warn('[ScreenSense] ElevenLabs TTS failed, falling back to Web Speech');
+    if (!response.ok || !response.audioBase64) {
+      console.warn('[ScreenSense] ElevenLabs TTS failed via SW:', response.error, '— falling back to Web Speech');
       speakWebSpeech(text);
       return;
     }
 
-    const audioBlob = await response.blob();
+    // Convert base64 to audio blob and play
+    const binaryString = atob(response.audioBase64);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    const audioBlob = new Blob([bytes], { type: 'audio/mpeg' });
     const audioUrl = URL.createObjectURL(audioBlob);
 
     currentAudio = new Audio(audioUrl);
@@ -94,14 +95,17 @@ function speakWebSpeech(text: string): void {
 }
 
 export async function speak(text: string): Promise<void> {
+  console.log('[ScreenSense][TTS] speak() called, enabled:', enabled, 'text:', text.substring(0, 80));
   if (!enabled) return;
   stop();
 
   try {
     const keys = await getApiKeys();
+    console.log('[ScreenSense][TTS] API keys loaded, hasElevenLabsKey:', !!keys.elevenLabsKey);
     if (keys.elevenLabsKey) {
       await speakElevenLabs(text, keys.elevenLabsKey);
     } else {
+      console.log('[ScreenSense][TTS] No ElevenLabs key, falling back to Web Speech API');
       speakWebSpeech(text);
     }
   } catch (err) {

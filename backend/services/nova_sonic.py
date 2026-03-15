@@ -63,6 +63,6 @@ def transcribe_audio(audio_bytes: bytes, mime_type: str) -> str:
     except requests.exceptions.ConnectionError:
         raise ValueError("Cannot reach Groq API — check your internet connection")
     except Exception as e:
-        if "ValueError" in type(e).__name__:
+        if isinstance(e, ValueError):
             raise
         raise ValueError(f"Transcription failed: {e}") from e

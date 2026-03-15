@@ -1,0 +1,48 @@
+[Script Info]
+ScriptType: v4.00+
+PlayResX: 1582
+PlayResY: 990
+WrapStyle: 0
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,Helvetica Neue,26,&H00FFFFFF,&H000000FF,&H00000000,&HC0000000,0,0,0,0,100,100,0.5,0,3,12,0,2,40,40,50,1
+Style: Voice,Helvetica Neue,26,&H00E4CA48,&H000000FF,&H00201A00,&HC0182028,0,1,0,0,100,100,0.5,0,3,12,0,2,40,40,50,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:00.00,0:00:06.00,Default,,0,0,0,,Hey, here is a quick demo about ScreenSense\Nwhich is submitted for the Global Engineering Hackathon.
+Dialogue: 0,0:00:06.00,0:00:09.00,Default,,0,0,0,,So why and what is ScreenSense?
+Dialogue: 0,0:00:09.00,0:00:17.00,Default,,0,0,0,,So, especially me, whenever I browse Chrome,\NI have a lot of questions, so I take a screenshot of it
+Dialogue: 0,0:00:17.00,0:00:22.00,Default,,0,0,0,,and then put it to ChatGPT or Claude\Nand ask basically what it is.
+Dialogue: 0,0:00:22.00,0:00:28.00,Default,,0,0,0,,And in this process it takes a lot of time,\NI take a screenshot and I forget to delete the screenshot
+Dialogue: 0,0:00:28.00,0:00:34.00,Default,,0,0,0,,and you know there is a lot of mess\Nand this ScreenSense provides a very unique UI
+Dialogue: 0,0:00:34.00,0:00:42.00,Default,,0,0,0,,which comes on top of your existing Chrome\Nand it will be very easy to use as well.
+Dialogue: 0,0:00:42.00,0:00:45.00,Default,,0,0,0,,So I will just show you how it is done.
+Dialogue: 0,0:00:45.00,0:00:50.00,Default,,0,0,0,,All you have to do is hover the button and then ask anything\Nand you will get your answer right in front of you.
+Dialogue: 0,0:00:50.00,0:00:57.00,Default,,0,0,0,,So there is a quick 30 seconds demo on the website\Nyou can just watch it and which will also be shown in this video
+Dialogue: 0,0:00:57.00,0:01:06.00,Default,,0,0,0,,and basically we are screen-aware, voice-first interaction\Nand we also provide text plus audio or audio only or text only as the user prefers.
+Dialogue: 0,0:01:06.00,0:01:12.00,Default,,0,0,0,,And this is one of the unique designs\Nin our current product that is explanation levels.
+Dialogue: 0,0:01:12.00,0:01:17.00,Default,,0,0,0,,So that example is also provided in the website\Nthat if you want you can try it out.
+Dialogue: 0,0:01:17.00,0:01:19.00,Default,,0,0,0,,So basically what is an API?
+Dialogue: 0,0:01:19.00,0:01:23.00,Default,,0,0,0,,So it answers a kid level, student level,\Ncollege, PhD or executive.
+Dialogue: 0,0:01:23.00,0:01:31.00,Default,,0,0,0,,So I will personally prefer kid level so it explains me\Nin very detailed and easy way so that I can understand.
+Dialogue: 0,0:01:31.00,0:01:40.00,Default,,0,0,0,,So if you want to use this product, all you have to do is\Nclone this GitHub repo first and then I will show you more.
+Dialogue: 0,0:01:40.00,0:01:48.00,Default,,0,0,0,,Select the repo that you just cloned and we show you\Na quick 3-step guide on how to set up this product
+Dialogue: 0,0:01:48.00,0:01:58.00,Default,,0,0,0,,where we have to enable the microphone and then a quick show\Non how this product works and then you launch it and the extension is ready for use.
+Dialogue: 0,0:01:58.00,0:02:03.00,Default,,0,0,0,,Before we use the ScreenSense agent,\Nwe need to do one last setup.
+Dialogue: 0,0:02:03.00,0:02:10.00,Default,,0,0,0,,Click on the extension, go to ScreenSense Voice\Nand then click on settings, then you land on the settings page.
+Dialogue: 0,0:02:10.00,0:02:20.00,Default,,0,0,0,,So we have all these other customizable information\Nand then there's this Groq API key and ElevenLabs API key that you need to set.
+Dialogue: 0,0:02:20.00,0:02:26.00,Default,,0,0,0,,So both are free, once you create an account\Nyou will be given a Groq API key for free and even ElevenLabs.
+Dialogue: 0,0:02:26.00,0:02:33.00,Default,,0,0,0,,But there's a catch on ElevenLabs because there's only up to a certain level\Nthat you can use it for free and after that you have to pay for it.
+Dialogue: 0,0:02:33.00,0:02:37.00,Default,,0,0,0,,So once you do that you can just set it up\Nand you can just use it.
+Dialogue: 0,0:02:38.00,0:02:43.00,Default,,0,0,0,,So let's quickly see a demo.
+Dialogue: 0,0:02:43.00,0:02:48.00,Voice,,0,0,0,,Hey, what does FFN mean here?
+Dialogue: 0,0:02:48.00,0:02:55.00,Default,,0,0,0,,FFN stands for Feed Forward Network\Nused in the transformer architecture.
+Dialogue: 0,0:02:55.00,0:02:59.00,Voice,,0,0,0,,Hey, what are we looking at right now?
+Dialogue: 0,0:02:59.00,0:03:07.00,Default,,0,0,0,,We're looking at the MacBook Neo product page\Non Apple's website, available for pre-order starting March 11th.
+Dialogue: 0,0:03:09.00,0:03:13.00,Voice,,0,0,0,,And what is this?
+Dialogue: 0,0:03:13.00,0:03:20.00,Default,,0,0,0,,It's the Apple Watch Ultra 3,\Na new smartwatch model priced from $799.
+Dialogue: 0,0:03:20.00,0:03:28.00,Voice,,0,0,0,,It looks like this has a lot of features.\NCan you tell me what these are?
+Dialogue: 0,0:03:29.00,0:03:37.00,Default,,0,0,0,,The Apple Watch Ultra 3 has various features\Nlike different finishes, display, battery and durability.
+Dialogue: 0,0:03:37.00,0:03:42.00,Default,,0,0,0,,It also has water resistance\Nand a customizable action button.
