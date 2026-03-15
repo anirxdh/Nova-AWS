@@ -2,7 +2,7 @@ import { ExtensionState, IconState, MessageType, ConversationTurn, ConversationI
 import { isMicPermissionGranted, getApiKeys, getSettings } from '../shared/storage';
 import { MAX_CONVERSATION_TURNS } from '../shared/constants';
 import { captureScreenshot } from './screenshot';
-import { transcribeAudio } from './api/groq-stt';
+import { transcribeAudio, connectSSE, checkBackendHealth } from './api/backend-client';
 import { streamGeminiResponse, generateTtsSummary } from './api/groq-vision';
 
 let currentState: ExtensionState = 'idle';
@@ -136,7 +136,7 @@ async function runPipeline(tabId: number, audioBase64: string, mimeType: string)
 
     let transcript: string;
     try {
-      transcript = await transcribeAudio(audioBase64, mimeType, keys.groqKey);
+      transcript = await transcribeAudio(audioBase64, mimeType);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Couldn't catch that — try holding a bit longer";
       sendToTab(tabId, { action: 'pipeline-error', error: msg });
@@ -292,6 +292,40 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
 
 chrome.tabs.onRemoved.addListener((tabId) => {
   conversations.delete(tabId);
+});
+
+// ─── Backend SSE Connection ───
+let sseConnection: EventSource | null = null;
+
+function initSSE(): void {
+  if (sseConnection) {
+    sseConnection.close();
+  }
+  sseConnection = connectSSE();
+  sseConnection.addEventListener('status', (event: MessageEvent) => {
+    try {
+      const data = JSON.parse(event.data);
+      console.log('[ScreenSense] SSE status:', data.stage, data);
+    } catch {
+      console.warn('[ScreenSense] Failed to parse SSE event:', event.data);
+    }
+  });
+  sseConnection.onerror = () => {
+    console.warn('[ScreenSense] SSE connection lost, will retry in 5s');
+    sseConnection?.close();
+    sseConnection = null;
+    setTimeout(initSSE, 5000);
+  };
+}
+
+// Try to connect SSE on startup (non-blocking, fails silently if backend not running)
+checkBackendHealth().then((ok) => {
+  if (ok) {
+    initSSE();
+    console.log('[ScreenSense] Backend connected, SSE initialized');
+  } else {
+    console.warn('[ScreenSense] Backend not reachable at localhost:8000 — start it with: cd backend && uvicorn backend.main:app');
+  }
 });
 
 // ─── Message Handling ───
