@@ -121,7 +121,7 @@ async function runPipeline(tabId: number, audioBase64: string, mimeType: string)
     }
 
     // Stage 1: Transcribe audio
-    sendToTab(tabId, { action: 'pipeline-stage', stage: 'transcribing' });
+    sendToTab(tabId, { action: 'bubble-state', state: 'transcribing' });
 
     let transcript: string;
     try {
@@ -135,7 +135,7 @@ async function runPipeline(tabId: number, audioBase64: string, mimeType: string)
       return;
     }
 
-    sendToTab(tabId, { action: 'pipeline-stage', stage: 'thinking', transcript });
+    sendToTab(tabId, { action: 'bubble-state', state: 'understanding', label: transcript });
 
     // Capture DOM snapshot from content script
     let domSnapshot: object = {};
@@ -163,12 +163,11 @@ async function runPipeline(tabId: number, audioBase64: string, mimeType: string)
 
     // Handle response based on type
     if (taskResult.type === 'answer') {
-      // For answers, display the text in the overlay (send as streaming for compatibility)
       const answerText = taskResult.text || '';
-      sendToTab(tabId, { action: 'pipeline-stage', stage: 'streaming' });
-      sendToTab(tabId, { action: 'stream-chunk', text: answerText });
-      sendToTab(tabId, { action: 'stream-complete', fullText: answerText });
-      sendToTab(tabId, { action: 'pipeline-stage', stage: 'complete' });
+      sendToTab(tabId, { action: 'bubble-state', state: 'answering' });
+      sendToTab(tabId, { action: 'bubble-answer-chunk', text: answerText });
+      sendToTab(tabId, { action: 'bubble-answer-done', fullText: answerText });
+      sendToTab(tabId, { action: 'bubble-state', state: 'done' });
 
       // Add to conversation history
       const history = getConversation(tabId);
@@ -186,10 +185,10 @@ async function runPipeline(tabId: number, audioBase64: string, mimeType: string)
         .join('\n') || 'No steps returned';
       console.log('[ScreenSense] Action plan:', taskResult.actions);
 
-      sendToTab(tabId, { action: 'pipeline-stage', stage: 'streaming' });
-      sendToTab(tabId, { action: 'stream-chunk', text: stepsText });
-      sendToTab(tabId, { action: 'stream-complete', fullText: stepsText });
-      sendToTab(tabId, { action: 'pipeline-stage', stage: 'complete' });
+      sendToTab(tabId, { action: 'bubble-state', state: 'planning' });
+      sendToTab(tabId, { action: 'bubble-answer-chunk', text: stepsText });
+      sendToTab(tabId, { action: 'bubble-answer-done', fullText: stepsText });
+      sendToTab(tabId, { action: 'bubble-state', state: 'done' });
 
       const history = getConversation(tabId);
       history.push({ role: 'user', content: transcript });
@@ -224,7 +223,7 @@ async function runFollowUp(tabId: number, text: string): Promise<void> {
       return;
     }
 
-    sendToTab(tabId, { action: 'pipeline-stage', stage: 'thinking', transcript: text });
+    sendToTab(tabId, { action: 'bubble-state', state: 'understanding', label: text });
 
     // Capture DOM snapshot from content script
     let domSnapshot: object = {};
@@ -250,10 +249,10 @@ async function runFollowUp(tabId: number, text: string): Promise<void> {
     // Handle response based on type
     if (taskResult.type === 'answer') {
       const answerText = taskResult.text || '';
-      sendToTab(tabId, { action: 'pipeline-stage', stage: 'streaming' });
-      sendToTab(tabId, { action: 'stream-chunk', text: answerText });
-      sendToTab(tabId, { action: 'stream-complete', fullText: answerText });
-      sendToTab(tabId, { action: 'pipeline-stage', stage: 'complete' });
+      sendToTab(tabId, { action: 'bubble-state', state: 'answering' });
+      sendToTab(tabId, { action: 'bubble-answer-chunk', text: answerText });
+      sendToTab(tabId, { action: 'bubble-answer-done', fullText: answerText });
+      sendToTab(tabId, { action: 'bubble-state', state: 'done' });
 
       const history = getConversation(tabId);
       history.push({ role: 'user', content: text });
@@ -269,10 +268,10 @@ async function runFollowUp(tabId: number, text: string): Promise<void> {
         .join('\n') || 'No steps returned';
       console.log('[ScreenSense] Follow-up action plan:', taskResult.actions);
 
-      sendToTab(tabId, { action: 'pipeline-stage', stage: 'streaming' });
-      sendToTab(tabId, { action: 'stream-chunk', text: stepsText });
-      sendToTab(tabId, { action: 'stream-complete', fullText: stepsText });
-      sendToTab(tabId, { action: 'pipeline-stage', stage: 'complete' });
+      sendToTab(tabId, { action: 'bubble-state', state: 'planning' });
+      sendToTab(tabId, { action: 'bubble-answer-chunk', text: stepsText });
+      sendToTab(tabId, { action: 'bubble-answer-done', fullText: stepsText });
+      sendToTab(tabId, { action: 'bubble-state', state: 'done' });
 
       const history = getConversation(tabId);
       history.push({ role: 'user', content: text });
@@ -324,6 +323,31 @@ function initSSE(): void {
     try {
       const data = JSON.parse(event.data);
       console.log('[ScreenSense] SSE status:', data.stage, data);
+
+      // Determine which tab to send to
+      const tabId = pendingTabId ?? recordingTabId;
+      if (!tabId) return;
+
+      // Map backend SSE stages to bubble states
+      switch (data.stage) {
+        case 'transcribing':
+          sendToTab(tabId, { action: 'bubble-state', state: 'transcribing' });
+          break;
+        case 'done':
+          // "done" from /transcribe means transcript is ready — next stage is understanding
+          // Don't send 'done' state here — understanding comes from /task
+          break;
+        case 'understanding':
+          sendToTab(tabId, { action: 'bubble-state', state: 'understanding' });
+          break;
+        case 'task_complete':
+          // Don't send 'done' yet — the pipeline will send answer/steps content first,
+          // then 'done' after content delivery is complete
+          break;
+        case 'error':
+          sendToTab(tabId, { action: 'pipeline-error', error: data.detail || 'Something went wrong' });
+          break;
+      }
     } catch {
       console.warn('[ScreenSense] Failed to parse SSE event:', event.data);
     }
