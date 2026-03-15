@@ -26,126 +26,146 @@ const WAVE_ICON_STATIC = `<svg width="16" height="16" viewBox="0 0 16 16" fill="
 // ---------------------------------------------------------------------------
 
 const BUBBLE_STYLES = `
-/* ─── Host bubble element ─── */
+/* ─── Host bubble — Apple frosted glass ─── */
 .screensense-bubble {
   position: fixed;
   z-index: 2147483647;
-  padding: 14px 18px;
-  border-radius: 14px;
-  background: rgba(20, 20, 20, 0.85);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.9);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  padding: 8px 14px;
+  border-radius: 20px;
+  background: rgba(20, 20, 22, 0.65);
+  backdrop-filter: blur(50px) saturate(1.8);
+  -webkit-backdrop-filter: blur(50px) saturate(1.8);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.95);
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', system-ui, sans-serif;
   font-size: 14px;
-  line-height: 1.5;
+  line-height: 1.6;
   pointer-events: none;
   user-select: text;
   opacity: 0;
-  transform: scale(0.95);
-  transition: opacity 0.18s ease, transform 0.18s ease, width 0.22s ease;
+  transform: scale(0.96) translateY(4px);
+  transition: opacity 0.25s cubic-bezier(0.2, 0, 0, 1),
+              transform 0.25s cubic-bezier(0.2, 0, 0, 1),
+              width 0.3s cubic-bezier(0.2, 0, 0, 1),
+              padding 0.3s cubic-bezier(0.2, 0, 0, 1),
+              border-radius 0.3s cubic-bezier(0.2, 0, 0, 1),
+              box-shadow 0.3s ease;
   width: 180px;
   box-sizing: border-box;
+  box-shadow:
+    0 0 0 0.5px rgba(255, 255, 255, 0.06),
+    0 12px 48px rgba(0, 0, 0, 0.5),
+    0 4px 16px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.03);
 }
 
 .screensense-bubble.visible {
   opacity: 1;
-  transform: scale(1);
+  transform: scale(1) translateY(0);
 }
 
 .screensense-bubble.fade-out {
   opacity: 0;
-  transform: scale(0.95);
+  transform: scale(0.96) translateY(4px);
 }
 
 /* Expanded width for answering state */
 .screensense-bubble.state-answering {
-  width: 380px;
-  max-height: 360px;
+  width: 444px;
+  max-height: 500px;
+  padding: 20px 24px;
+  border-radius: 18px;
   overflow-y: auto;
   pointer-events: auto;
 }
 
-/* Pointer events on for error/done so user can interact if needed */
 .screensense-bubble.state-error {
   pointer-events: auto;
 }
 
-/* ─── Status states (transcribing / understanding / planning) ─── */
+/* ─── Status states ─── */
 .screensense-status {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.75);
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+  font-weight: 400;
 }
 
 .screensense-status-dot {
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
-  background: rgba(165, 180, 252, 0.85);
+  background: rgba(255, 255, 255, 0.65);
   flex-shrink: 0;
-  animation: bubble-pulse 1.2s ease-in-out infinite;
+  animation: apple-pulse 1.5s ease-in-out infinite;
 }
 
 /* ─── Listening waveform ─── */
 .screensense-waveform {
   display: flex;
-  align-items: flex-end;
-  gap: 2px;
-  height: 24px;
+  align-items: center;
+  gap: 2.5px;
+  height: 20px;
   justify-content: center;
+  padding: 0;
 }
 
 .screensense-waveform .wave-bar {
-  width: 3px;
+  width: 2.5px;
   min-height: 2px;
-  max-height: 24px;
+  max-height: 18px;
   height: 2px;
-  background: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.65);
   border-radius: 1.5px;
-  transition: height 0.05s ease-out;
-}
-
-.screensense-listening-label {
-  text-align: center;
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.4);
-  margin-top: 6px;
-  letter-spacing: 0.03em;
+  transition: height 0.06s cubic-bezier(0.2, 0, 0, 1);
 }
 
 /* ─── Executing step indicator ─── */
 .screensense-step {
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.8);
+  color: rgba(255, 255, 255, 0.82);
 }
 
 .screensense-step-count {
   font-size: 11px;
   color: rgba(255, 255, 255, 0.35);
-  margin-bottom: 4px;
+  margin-bottom: 3px;
+  font-weight: 500;
 }
 
 .screensense-step-name {
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.88);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.screensense-reasoning {
+  font-size: 11.5px;
+  color: rgba(255, 255, 255, 0.45);
+  font-style: italic;
+  margin-bottom: 6px;
+  padding: 4px 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 6px;
+  border-left: 2px solid rgba(48, 209, 88, 0.4);
+  line-height: 1.4;
 }
 
 /* ─── Answering: response area ─── */
 .screensense-response strong {
   font-weight: 600;
-  color: rgba(255, 255, 255, 1);
+  color: #fff;
 }
 
 .screensense-response code {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.08);
+  border: 0.5px solid rgba(255, 255, 255, 0.1);
   padding: 1px 5px;
   border-radius: 4px;
-  font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
-  font-size: 13px;
+  font-family: 'SF Mono', Menlo, Monaco, monospace;
+  font-size: 12.5px;
 }
 
 .screensense-response ul {
@@ -157,7 +177,7 @@ const BUBBLE_STYLES = `
   margin: 2px 0;
 }
 
-/* ─── Chat history (previous turns) ─── */
+/* ─── Chat history ─── */
 .screensense-history {
   display: none;
   margin-bottom: 10px;
@@ -168,33 +188,33 @@ const BUBBLE_STYLES = `
 }
 
 .screensense-history-turn {
-  margin-bottom: 12px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 0.5px solid rgba(255, 255, 255, 0.06);
 }
 
 .screensense-history-q {
   font-size: 12px;
-  color: rgba(165, 180, 252, 0.6);
+  color: rgba(255, 255, 255, 0.35);
   font-style: italic;
-  margin-bottom: 4px;
+  margin-bottom: 3px;
 }
 
 .screensense-history-a {
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.5);
+  color: rgba(255, 255, 255, 0.45);
 }
 
 .screensense-history-a strong {
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.65);
+  color: rgba(255, 255, 255, 0.6);
 }
 
 .screensense-history-a code {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.06);
   padding: 1px 4px;
   border-radius: 3px;
-  font-family: 'SF Mono', Monaco, monospace;
+  font-family: 'SF Mono', Menlo, monospace;
   font-size: 12px;
 }
 
@@ -207,13 +227,13 @@ const BUBBLE_STYLES = `
   margin: 1px 0;
 }
 
-/* ─── Transcript (current user question, shown during answering) ─── */
+/* ─── Transcript ─── */
 .screensense-transcript {
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.45);
-  margin-bottom: 12px;
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.35);
+  margin-bottom: 10px;
   font-style: italic;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 0.5px solid rgba(255, 255, 255, 0.06);
   padding-bottom: 8px;
   display: none;
 }
@@ -224,7 +244,7 @@ const BUBBLE_STYLES = `
 
 /* ─── Error state ─── */
 .screensense-error {
-  color: rgba(255, 120, 120, 0.9);
+  color: rgba(255, 69, 58, 0.95);
   font-size: 13px;
 }
 
@@ -234,7 +254,7 @@ const BUBBLE_STYLES = `
   align-items: center;
   gap: 8px;
   font-size: 13px;
-  color: rgba(165, 252, 180, 0.9);
+  color: rgba(48, 209, 88, 0.95);
 }
 
 .screensense-done-check {
@@ -245,7 +265,7 @@ const BUBBLE_STYLES = `
 .screensense-followup {
   display: none;
   margin-top: 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 0.5px solid rgba(255, 255, 255, 0.06);
   padding-top: 10px;
 }
 
@@ -262,30 +282,31 @@ const BUBBLE_STYLES = `
 .screensense-followup-input {
   flex: 1;
   background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 0.5px solid rgba(255, 255, 255, 0.12);
   border-radius: 10px;
   padding: 8px 12px;
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.9);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  color: rgba(255, 255, 255, 0.92);
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
   outline: none;
-  transition: border-color 0.2s ease;
+  transition: border-color 0.2s ease, background 0.2s ease;
 }
 
 .screensense-followup-input::placeholder {
-  color: rgba(255, 255, 255, 0.25);
+  color: rgba(255, 255, 255, 0.2);
 }
 
 .screensense-followup-input:focus {
-  border-color: rgba(129, 140, 248, 0.5);
+  border-color: rgba(10, 132, 255, 0.5);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .screensense-followup-send {
-  background: rgba(129, 140, 248, 0.2);
-  border: 1px solid rgba(129, 140, 248, 0.3);
+  background: rgba(10, 132, 255, 0.2);
+  border: 0.5px solid rgba(10, 132, 255, 0.3);
   border-radius: 8px;
-  padding: 6px 10px;
-  color: rgba(165, 180, 252, 0.9);
+  padding: 6px 12px;
+  color: rgba(10, 132, 255, 0.95);
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
@@ -294,18 +315,17 @@ const BUBBLE_STYLES = `
 }
 
 .screensense-followup-send:hover {
-  background: rgba(129, 140, 248, 0.3);
-  color: #c4b5fd;
+  background: rgba(10, 132, 255, 0.3);
 }
 
-/* ─── Context bar (TTS + turns + clear) ─── */
+/* ─── Context bar ─── */
 .screensense-context-bar {
   display: none;
   margin-top: 8px;
   align-items: center;
   gap: 8px;
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.3);
+  color: rgba(255, 255, 255, 0.25);
 }
 
 .screensense-context-bar.visible {
@@ -314,16 +334,16 @@ const BUBBLE_STYLES = `
 
 .screensense-context-track {
   flex: 1;
-  height: 3px;
+  height: 2px;
   background: rgba(255, 255, 255, 0.06);
-  border-radius: 2px;
+  border-radius: 1px;
   overflow: hidden;
 }
 
 .screensense-context-fill {
   height: 100%;
-  background: linear-gradient(90deg, rgba(129, 140, 248, 0.6), rgba(196, 181, 253, 0.6));
-  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 1px;
   transition: width 0.3s ease;
 }
 
@@ -345,13 +365,13 @@ const BUBBLE_STYLES = `
 }
 
 .screensense-clear-btn:hover {
-  color: rgba(255, 120, 120, 0.7);
-  background: rgba(255, 120, 120, 0.08);
+  color: rgba(255, 69, 58, 0.7);
+  background: rgba(255, 69, 58, 0.08);
 }
 
 .screensense-tts-btn {
   background: none;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 0.5px solid rgba(255, 255, 255, 0.08);
   color: rgba(255, 255, 255, 0.25);
   cursor: pointer;
   padding: 3px 5px;
@@ -364,14 +384,14 @@ const BUBBLE_STYLES = `
 }
 
 .screensense-tts-btn.active {
-  color: rgba(129, 140, 248, 0.9);
-  border-color: rgba(129, 140, 248, 0.3);
-  background: rgba(129, 140, 248, 0.08);
+  color: rgba(10, 132, 255, 0.9);
+  border-color: rgba(10, 132, 255, 0.25);
+  background: rgba(10, 132, 255, 0.08);
 }
 
 .screensense-tts-btn:hover {
-  color: rgba(165, 180, 252, 0.9);
-  border-color: rgba(129, 140, 248, 0.4);
+  color: rgba(10, 132, 255, 0.8);
+  border-color: rgba(10, 132, 255, 0.3);
 }
 
 /* ─── Audio-only speaking waveform ─── */
@@ -384,35 +404,55 @@ const BUBBLE_STYLES = `
 }
 
 .screensense-speaking-wave .wave-bar {
-  width: 4px;
+  width: 3.5px;
   border-radius: 2px;
-  background: linear-gradient(180deg, rgba(165, 180, 252, 0.9), rgba(129, 140, 248, 0.6));
-  animation: bubble-wave-bar 1.2s ease-in-out infinite;
+  background: rgba(255, 255, 255, 0.7);
+  animation: apple-wave-bar 1.3s ease-in-out infinite;
 }
 
 .screensense-speaking-wave .wave-bar:nth-child(1)  { height: 8px;  animation-delay: 0s; }
-.screensense-speaking-wave .wave-bar:nth-child(2)  { height: 14px; animation-delay: 0.1s; }
-.screensense-speaking-wave .wave-bar:nth-child(3)  { height: 20px; animation-delay: 0.15s; }
-.screensense-speaking-wave .wave-bar:nth-child(4)  { height: 26px; animation-delay: 0.2s; }
-.screensense-speaking-wave .wave-bar:nth-child(5)  { height: 32px; animation-delay: 0.25s; }
-.screensense-speaking-wave .wave-bar:nth-child(6)  { height: 28px; animation-delay: 0.3s; }
-.screensense-speaking-wave .wave-bar:nth-child(7)  { height: 34px; animation-delay: 0.35s; }
-.screensense-speaking-wave .wave-bar:nth-child(8)  { height: 24px; animation-delay: 0.4s; }
-.screensense-speaking-wave .wave-bar:nth-child(9)  { height: 30px; animation-delay: 0.45s; }
-.screensense-speaking-wave .wave-bar:nth-child(10) { height: 20px; animation-delay: 0.5s; }
-.screensense-speaking-wave .wave-bar:nth-child(11) { height: 26px; animation-delay: 0.55s; }
-.screensense-speaking-wave .wave-bar:nth-child(12) { height: 16px; animation-delay: 0.6s; }
-.screensense-speaking-wave .wave-bar:nth-child(13) { height: 10px; animation-delay: 0.65s; }
+.screensense-speaking-wave .wave-bar:nth-child(2)  { height: 14px; animation-delay: 0.08s; }
+.screensense-speaking-wave .wave-bar:nth-child(3)  { height: 20px; animation-delay: 0.12s; }
+.screensense-speaking-wave .wave-bar:nth-child(4)  { height: 26px; animation-delay: 0.16s; }
+.screensense-speaking-wave .wave-bar:nth-child(5)  { height: 32px; animation-delay: 0.2s; }
+.screensense-speaking-wave .wave-bar:nth-child(6)  { height: 28px; animation-delay: 0.24s; }
+.screensense-speaking-wave .wave-bar:nth-child(7)  { height: 34px; animation-delay: 0.28s; }
+.screensense-speaking-wave .wave-bar:nth-child(8)  { height: 24px; animation-delay: 0.32s; }
+.screensense-speaking-wave .wave-bar:nth-child(9)  { height: 30px; animation-delay: 0.36s; }
+.screensense-speaking-wave .wave-bar:nth-child(10) { height: 20px; animation-delay: 0.4s; }
+.screensense-speaking-wave .wave-bar:nth-child(11) { height: 26px; animation-delay: 0.44s; }
+.screensense-speaking-wave .wave-bar:nth-child(12) { height: 16px; animation-delay: 0.48s; }
+.screensense-speaking-wave .wave-bar:nth-child(13) { height: 10px; animation-delay: 0.52s; }
 
 .screensense-speaking-label {
   text-align: center;
   font-size: 11px;
-  color: rgba(165, 180, 252, 0.5);
+  color: rgba(255, 255, 255, 0.35);
   margin-top: 4px;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.02em;
 }
 
-/* ─── Scrollbar styling (for answering state) ─── */
+/* ─── Drag handle ─── */
+.screensense-drag-handle {
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.2);
+  margin: 0 auto 8px auto;
+  cursor: grab;
+  transition: background 0.15s ease;
+}
+
+.screensense-drag-handle:hover {
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.screensense-drag-handle:active {
+  cursor: grabbing;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+/* ─── Scrollbar styling ─── */
 .screensense-bubble::-webkit-scrollbar {
   width: 4px;
 }
@@ -422,18 +462,18 @@ const BUBBLE_STYLES = `
 }
 
 .screensense-bubble::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.12);
   border-radius: 2px;
 }
 
 .screensense-bubble::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.2);
 }
 
 /* ─── Keyframe animations ─── */
-@keyframes bubble-pulse {
+@keyframes apple-pulse {
   0%, 100% {
-    opacity: 0.4;
+    opacity: 0.35;
     transform: scale(0.9);
   }
   50% {
@@ -442,9 +482,9 @@ const BUBBLE_STYLES = `
   }
 }
 
-@keyframes bubble-wave-bar {
-  0%, 100% { transform: scaleY(0.4); opacity: 0.5; }
-  50%      { transform: scaleY(1);   opacity: 1; }
+@keyframes apple-wave-bar {
+  0%, 100% { transform: scaleY(0.35); opacity: 0.4; }
+  50%      { transform: scaleY(1);    opacity: 0.9; }
 }
 `;
 
@@ -452,13 +492,13 @@ const BUBBLE_STYLES = `
 // Constants
 // ---------------------------------------------------------------------------
 
-const BAR_COUNT = 16;
+const BAR_COUNT = 10;
 const MIN_HEIGHT = 2;
-const MAX_HEIGHT = 24;
+const MAX_HEIGHT = 18;
 const CURSOR_OFFSET_Y = 20;
 const BUBBLE_WIDTH_STATUS = 180;
-const BUBBLE_WIDTH_ANSWER = 380;
-const BUBBLE_MAX_HEIGHT_ANSWER = 360;
+const BUBBLE_WIDTH_ANSWER = 444;
+const BUBBLE_MAX_HEIGHT_ANSWER = 500;
 
 // ---------------------------------------------------------------------------
 // CursorBubble class
@@ -497,6 +537,16 @@ export class CursorBubble {
   // Event handlers (stored for removal)
   private escapeHandler: ((e: KeyboardEvent) => void) | null = null;
   private mouseMoveHandler: ((e: MouseEvent) => void) | null = null;
+
+  // Drag state
+  private isDragging = false;
+  private dragStartX = 0;
+  private dragStartY = 0;
+  private dragBubbleStartX = 0;
+  private dragBubbleStartY = 0;
+  private dragMoveHandler: ((e: MouseEvent) => void) | null = null;
+  private dragUpHandler: ((e: MouseEvent) => void) | null = null;
+  private dragHandle: HTMLDivElement | null = null;
 
   // Callbacks registered by content script
   private onFollowUp: ((text: string) => void) | null = null;
@@ -570,6 +620,7 @@ export class CursorBubble {
 
     this.startTracking();
     this.visible = true;
+    this.ampLogCount = 0;
   }
 
   /**
@@ -586,6 +637,11 @@ export class CursorBubble {
     if (!this.bubbleEl) return;
 
     this.currentState = state;
+
+    // Store the transcript when it arrives with the 'understanding' state
+    if (state === 'understanding' && label) {
+      this.currentTranscript = label;
+    }
 
     // Clear state-specific classes
     this.bubbleEl.classList.remove(
@@ -614,11 +670,25 @@ export class CursorBubble {
    * Update waveform bar heights from microphone frequency data.
    * Only meaningful in 'listening' state.
    */
+  private ampLogCount = 0;
+
   updateAmplitude(frequencyData: Uint8Array): void {
-    if (this.currentState !== 'listening' || this.waveformBars.length === 0) return;
+    if (this.currentState !== 'listening' || this.waveformBars.length === 0) {
+      if (this.ampLogCount < 3) {
+        console.log('[ScreenSense][bubble] updateAmplitude SKIPPED: state=', this.currentState, 'bars=', this.waveformBars.length);
+        this.ampLogCount++;
+      }
+      return;
+    }
 
     const binCount = frequencyData.length;
     const step = Math.floor(binCount / BAR_COUNT);
+
+    if (this.ampLogCount < 5) {
+      const max = Math.max(...Array.from(frequencyData));
+      console.log(`[ScreenSense][bubble] updateAmplitude applying: bins=${binCount} step=${step} max=${max} bars=${this.waveformBars.length}`);
+      this.ampLogCount++;
+    }
 
     for (let i = 0; i < BAR_COUNT; i++) {
       const index = Math.min(i * step, binCount - 1);
@@ -711,6 +781,7 @@ export class CursorBubble {
    * In audio-only mode, shows speaking waveform and auto-dismisses when TTS finishes.
    */
   speakSummary(summary: string): void {
+    console.log('[ScreenSense][bubble] speakSummary called, displayMode:', this.displayMode, 'summary:', summary);
     if (this.displayMode === 'text-only') return;
     speak(summary);
 
@@ -833,6 +904,29 @@ export class CursorBubble {
     }
   }
 
+  /**
+   * Display Nova's reasoning text in the bubble before showing action steps.
+   * Inserts a styled reasoning element at the top of the bubble content.
+   */
+  showReasoning(text: string): void {
+    if (!this.bubbleEl) return;
+
+    // Remove any existing reasoning element
+    const existing = this.bubbleEl.querySelector('.screensense-reasoning');
+    if (existing) existing.remove();
+
+    const reasoningEl = document.createElement('div');
+    reasoningEl.className = 'screensense-reasoning';
+    reasoningEl.textContent = text;
+
+    // Insert at the beginning of the bubble content
+    if (this.bubbleEl.firstChild) {
+      this.bubbleEl.insertBefore(reasoningEl, this.bubbleEl.firstChild);
+    } else {
+      this.bubbleEl.appendChild(reasoningEl);
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // Private: state rendering
   // ---------------------------------------------------------------------------
@@ -880,12 +974,7 @@ export class CursorBubble {
       this.waveformBars.push(bar);
     }
 
-    const labelEl = document.createElement('div');
-    labelEl.className = 'screensense-listening-label';
-    labelEl.textContent = 'Listening...';
-
     this.bubbleEl.appendChild(waveformEl);
-    this.bubbleEl.appendChild(labelEl);
   }
 
   private renderStatus(text: string): void {
@@ -959,6 +1048,11 @@ export class CursorBubble {
   private renderAnsweringState(): void {
     if (!this.bubbleEl) return;
 
+    // Expand to full answer width (override inline style from positionBubble)
+    this.bubbleEl.style.width = `${BUBBLE_WIDTH_ANSWER}px`;
+    this.bubbleEl.style.padding = '20px 24px';
+    this.bubbleEl.style.borderRadius = '18px';
+
     // Clear non-persistent content (not history)
     if (this.historyEl) {
       // Keep history — remove everything else
@@ -974,6 +1068,16 @@ export class CursorBubble {
 
     // Adjust bubble width for answer content
     this.bubbleEl.style.maxHeight = `${BUBBLE_MAX_HEIGHT_ANSWER}px`;
+
+    // Drag handle at the top of the bubble
+    this.dragHandle = document.createElement('div');
+    this.dragHandle.className = 'screensense-drag-handle';
+    this.dragHandle.addEventListener('mousedown', (e: MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.startDrag(e);
+    });
+    this.bubbleEl.appendChild(this.dragHandle);
 
     // Build history container (if not already present)
     if (!this.historyEl) {
@@ -1092,6 +1196,10 @@ export class CursorBubble {
     if (!this.bubbleEl) return;
     this.bubbleEl.innerHTML = '';
     this.bubbleEl.style.maxHeight = '';
+    // Reset to pill size (inline overrides from answering state)
+    this.bubbleEl.style.width = '';
+    this.bubbleEl.style.padding = '';
+    this.bubbleEl.style.borderRadius = '';
     this.waveformBars = [];
 
     // Reset sub-element refs
@@ -1104,6 +1212,7 @@ export class CursorBubble {
     this.contextFill = null;
     this.contextLabel = null;
     this.ttsBtn = null;
+    this.dragHandle = null;
   }
 
   private sendFollowUp(): void {
@@ -1159,32 +1268,80 @@ export class CursorBubble {
     const vw = window.innerWidth;
     const vh = window.innerHeight;
 
-    let left: string;
-    let translateX = '';
+    // Calculate pixel position, accounting for centering / flipping so we
+    // never need to put translateX/Y into the inline transform — that keeps
+    // the CSS-class entrance animation (scale + translateY) working.
+    let left: number;
     if (cursorX < bubbleWidth / 2 + 10) {
-      left = `${Math.max(10, cursorX)}px`;
+      left = Math.max(10, cursorX);
     } else if (cursorX > vw - bubbleWidth / 2 - 10) {
-      left = `${Math.min(vw - 10, cursorX)}px`;
-      translateX = 'translateX(-100%)';
+      left = Math.min(vw - 10, cursorX) - bubbleWidth;
     } else {
-      left = `${cursorX}px`;
-      translateX = 'translateX(-50%)';
+      left = cursorX - bubbleWidth / 2;
     }
 
-    let top: string;
-    let translateY = '';
+    let top: number;
     if (cursorY + offset + bubbleMaxHeight > vh) {
-      top = `${cursorY - offset}px`;
-      translateY = 'translateY(-100%)';
+      // Flip above cursor — estimate actual bubble height as min(content, max)
+      const estimatedHeight = Math.min(
+        this.bubbleEl.offsetHeight || 60,
+        bubbleMaxHeight
+      );
+      top = cursorY - offset - estimatedHeight;
     } else {
-      top = `${cursorY + offset}px`;
+      top = cursorY + offset;
     }
 
-    const transform = [translateX, translateY].filter(Boolean).join(' ') || 'none';
-    this.bubbleEl.style.left = left;
-    this.bubbleEl.style.top = top;
-    this.bubbleEl.style.transform = transform;
+    this.bubbleEl.style.left = `${left}px`;
+    this.bubbleEl.style.top = `${top}px`;
     this.bubbleEl.style.width = `${bubbleWidth}px`;
+    // Do NOT set inline transform — let the CSS classes handle scale/translateY
+    // for entrance and exit animations.
+  }
+
+  private startDrag(e: MouseEvent): void {
+    if (!this.bubbleEl || this.currentState !== 'answering') return;
+
+    this.isDragging = true;
+    this.dragStartX = e.clientX;
+    this.dragStartY = e.clientY;
+    this.dragBubbleStartX = parseInt(this.bubbleEl.style.left || '0', 10);
+    this.dragBubbleStartY = parseInt(this.bubbleEl.style.top || '0', 10);
+
+    this.dragMoveHandler = (ev: MouseEvent) => {
+      if (!this.isDragging || !this.bubbleEl) return;
+      const dx = ev.clientX - this.dragStartX;
+      const dy = ev.clientY - this.dragStartY;
+      this.bubbleEl.style.left = `${this.dragBubbleStartX + dx}px`;
+      this.bubbleEl.style.top = `${this.dragBubbleStartY + dy}px`;
+    };
+
+    this.dragUpHandler = () => {
+      this.isDragging = false;
+      if (this.dragMoveHandler) {
+        document.removeEventListener('mousemove', this.dragMoveHandler);
+        this.dragMoveHandler = null;
+      }
+      if (this.dragUpHandler) {
+        document.removeEventListener('mouseup', this.dragUpHandler);
+        this.dragUpHandler = null;
+      }
+    };
+
+    document.addEventListener('mousemove', this.dragMoveHandler);
+    document.addEventListener('mouseup', this.dragUpHandler);
+  }
+
+  private stopDrag(): void {
+    this.isDragging = false;
+    if (this.dragMoveHandler) {
+      document.removeEventListener('mousemove', this.dragMoveHandler);
+      this.dragMoveHandler = null;
+    }
+    if (this.dragUpHandler) {
+      document.removeEventListener('mouseup', this.dragUpHandler);
+      this.dragUpHandler = null;
+    }
   }
 
   private dismissImmediate(): void {
@@ -1195,6 +1352,7 @@ export class CursorBubble {
   private cleanup(): void {
     stopTts();
     this.stopTracking();
+    this.stopDrag();
 
     if (this.escapeHandler) {
       document.removeEventListener('keydown', this.escapeHandler, true);
@@ -1224,6 +1382,7 @@ export class CursorBubble {
     this.contextFill = null;
     this.contextLabel = null;
     this.ttsBtn = null;
+    this.dragHandle = null;
     this.waveformBars = [];
     this.accumulatedText = '';
     this.currentTranscript = '';

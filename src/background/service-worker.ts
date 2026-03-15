@@ -508,6 +508,11 @@ async function runFollowUp(tabId: number, text: string): Promise<void> {
       return;
     }
 
+    // Send reasoning to bubble if present
+    if (taskResult.reasoning) {
+      sendToTab(tabId, { action: 'bubble-reasoning', text: taskResult.reasoning });
+    }
+
     // Handle response based on type
     if (taskResult.type === 'answer') {
       const answerText = taskResult.text || '';

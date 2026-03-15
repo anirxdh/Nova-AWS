@@ -178,6 +178,7 @@ export interface TaskResponse {
   type: 'answer' | 'steps' | 'done';
   text?: string;
   summary?: string;  // used when type === 'done'
+  reasoning?: string;  // Nova's explanation of its decision
   actions?: Array<{
     action: string;
     selector?: string;

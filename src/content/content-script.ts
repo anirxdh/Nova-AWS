@@ -191,6 +191,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       bubble.show(lastCursorX, lastCursorY);
       bubble.setState('listening');
     }
+  } else if (message.action === 'bubble-reasoning') {
+    bubble.showReasoning(message.text);
   }
 });
 

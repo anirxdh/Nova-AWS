@@ -23,14 +23,16 @@ CRITICAL RULES:
 
 RESPONSE FORMAT — respond with ONE JSON object only, no markdown, no explanation:
 
+IMPORTANT: Always include a "reasoning" field explaining your assessment of the current page state and your decision.
+
 For TASK COMPLETE (the task appears to be done):
-{"type": "done", "summary": "Brief description of what was accomplished"}
+{"type": "done", "reasoning": "The search results are now showing USB-C cables. The task is complete.", "summary": "Brief description of what was accomplished"}
 
 For MORE ACTIONS NEEDED (the task requires more steps):
-{"type": "steps", "actions": [...]}
+{"type": "steps", "reasoning": "Search results are loaded. I can see the cheapest option. I'll click on it.", "actions": [...]}
 
 For COMMUNICATING SOMETHING (you need to tell the user something about what happened):
-{"type": "answer", "text": "your message"}
+{"type": "answer", "reasoning": "I can see the relevant information in the page content.", "text": "your message"}
 
 SUPPORTED ACTIONS (use exact selectors from DOM snapshot):
 - click: {"action": "click", "selector": "<from DOM snapshot>", "description": "Click the X button"}
@@ -65,11 +67,13 @@ CRITICAL RULES:
 
 RESPONSE FORMAT — respond with ONE JSON object only, no markdown, no explanation:
 
+IMPORTANT: Always include a "reasoning" field in your JSON response with a 1-2 sentence explanation of your decision. This helps the user understand what you're doing.
+
 For QUESTIONS (user asks about the page):
-{"type": "answer", "text": "your answer"}
+{"type": "answer", "reasoning": "I can see the price displayed in the product details section", "text": "your answer"}
 
 For TASKS (user wants you to do something on the page):
-{"type": "steps", "actions": [...]}
+{"type": "steps", "reasoning": "I see a search box at the top of the page. I'll type the query and click search.", "actions": [...]}
 
 SUPPORTED ACTIONS (use exact selectors from DOM snapshot):
 - click: {"action": "click", "selector": "<from DOM snapshot>", "description": "Click the X button"}
@@ -247,8 +251,19 @@ def reason_continue(
     except Exception as e:
         raise ValueError(f"Invalid screenshot_base64 — failed to decode: {e}") from e
 
-    # Format action history as a numbered list
-    if action_history:
+    # Compress action history for long chains to reduce token usage
+    if len(action_history) > 5:
+        # Summarize older actions, keep last 3 in detail
+        older = action_history[:-3]
+        recent = action_history[-3:]
+        older_summary = f"Previously completed {len(older)} actions: " + ", ".join(
+            entry.get('description', 'Unknown')[:40] for entry in older
+        )
+        formatted_history = older_summary + "\n\nRecent actions:\n" + "\n".join(
+            f"{len(older) + i + 1}. {entry.get('description', 'Unknown action')} -> {entry.get('result', 'Unknown result')}"
+            for i, entry in enumerate(recent)
+        )
+    elif action_history:
         formatted_history = "\n".join(
             f"{i + 1}. {entry.get('description', 'Unknown action')} -> {entry.get('result', 'Unknown result')}"
             for i, entry in enumerate(action_history)
