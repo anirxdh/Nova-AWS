@@ -74,4 +74,6 @@ export type MessageType =
   | { action: 'action-result'; ok: boolean; summary: string; error?: string }
   | { action: 'bubble-reasoning'; text: string }
   | { action: 'cancel-agent-loop' }
-  | { action: 'wait-for-dom-stable'; timeout?: number; settleMs?: number };
+  | { action: 'wait-for-dom-stable'; timeout?: number; settleMs?: number }
+  | { action: 'bubble-set-task'; task: string }
+  | { action: 'bubble-done-summary'; steps: string[] };

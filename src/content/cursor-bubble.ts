@@ -153,6 +153,38 @@ const BUBBLE_STYLES = `
   line-height: 1.4;
 }
 
+/* ─── Task banner (persistent question display) ─── */
+.screensense-task-banner {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+  font-style: italic;
+  margin-bottom: 6px;
+  padding-bottom: 5px;
+  border-bottom: 0.5px solid rgba(255, 255, 255, 0.08);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ─── Done summary (list of completed steps) ─── */
+.screensense-done-summary {
+  margin-top: 6px;
+}
+
+.screensense-done-summary-item {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+  margin: 2px 0;
+  display: flex;
+  gap: 5px;
+}
+
+.screensense-done-summary-check {
+  color: rgba(48, 209, 88, 0.8);
+  flex-shrink: 0;
+  font-size: 10px;
+}
+
 /* ─── Answering: response area ─── */
 .screensense-response strong {
   font-weight: 600;
@@ -520,11 +552,16 @@ export class CursorBubble {
   private contextLabel: HTMLSpanElement | null = null;
   private ttsBtn: HTMLButtonElement | null = null;
   private waveformBars: HTMLDivElement[] = [];
+  private taskBannerEl: HTMLDivElement | null = null;
 
   // State machine
   private currentState: BubbleState = 'idle';
   private visible = false;
   private tracking = false;
+
+  // Task tracking
+  private currentTask = '';
+  private completedSteps: string[] = [];
 
   // Accumulated content (answer streaming)
   private accumulatedText = '';
@@ -908,6 +945,50 @@ export class CursorBubble {
    * Display Nova's reasoning text in the bubble before showing action steps.
    * Inserts a styled reasoning element at the top of the bubble content.
    */
+  /** Set the current task text — shown persistently in the bubble */
+  setTask(task: string): void {
+    this.currentTask = task;
+    this.completedSteps = [];
+    this.ensureTaskBanner();
+  }
+
+  /** Show a done summary with all completed steps */
+  showDoneSummary(steps: string[]): void {
+    if (!this.bubbleEl) return;
+
+    // Remove any existing summary
+    const existing = this.bubbleEl.querySelector('.screensense-done-summary');
+    if (existing) existing.remove();
+
+    if (steps.length === 0) return;
+
+    const summaryEl = document.createElement('div');
+    summaryEl.className = 'screensense-done-summary';
+
+    for (const step of steps) {
+      const itemEl = document.createElement('div');
+      itemEl.className = 'screensense-done-summary-item';
+
+      const checkEl = document.createElement('span');
+      checkEl.className = 'screensense-done-summary-check';
+      checkEl.textContent = '\u2713';
+
+      const textEl = document.createElement('span');
+      textEl.textContent = step;
+
+      itemEl.appendChild(checkEl);
+      itemEl.appendChild(textEl);
+      summaryEl.appendChild(itemEl);
+    }
+
+    this.bubbleEl.appendChild(summaryEl);
+  }
+
+  /** Track a completed step for the done summary */
+  addCompletedStep(step: string): void {
+    this.completedSteps.push(step);
+  }
+
   showReasoning(text: string): void {
     if (!this.bubbleEl) return;
 
@@ -980,6 +1061,9 @@ export class CursorBubble {
   private renderStatus(text: string): void {
     if (!this.bubbleEl) return;
 
+    // Show task banner during processing states
+    this.ensureTaskBanner();
+
     const statusEl = document.createElement('div');
     statusEl.className = 'screensense-status';
 
@@ -996,6 +1080,9 @@ export class CursorBubble {
 
   private renderExecuting(label?: string): void {
     if (!this.bubbleEl) return;
+
+    // Show task banner if we have a task
+    this.ensureTaskBanner();
 
     const stepEl = document.createElement('div');
     stepEl.className = 'screensense-step';
@@ -1025,6 +1112,9 @@ export class CursorBubble {
   private renderDone(): void {
     if (!this.bubbleEl) return;
 
+    // Show task banner if present
+    this.ensureTaskBanner();
+
     const doneEl = document.createElement('div');
     doneEl.className = 'screensense-done';
 
@@ -1039,7 +1129,13 @@ export class CursorBubble {
     doneEl.appendChild(textEl);
     this.bubbleEl.appendChild(doneEl);
 
-    // Auto-dismiss after 2 seconds
+    // Show completed steps summary if we have any
+    if (this.completedSteps.length > 0) {
+      this.showDoneSummary(this.completedSteps);
+    }
+
+    // Auto-dismiss after longer if we have a summary to show
+    const dismissDelay = this.completedSteps.length > 0 ? 5000 : 2000;
     this.autoDismissTimer = setTimeout(() => {
       this.dismiss();
     }, 2000);
@@ -1213,6 +1309,25 @@ export class CursorBubble {
     this.contextLabel = null;
     this.ttsBtn = null;
     this.dragHandle = null;
+    this.taskBannerEl = null;
+  }
+
+  private ensureTaskBanner(): void {
+    if (!this.bubbleEl || !this.currentTask) return;
+
+    // Remove existing banner
+    if (this.taskBannerEl) this.taskBannerEl.remove();
+
+    this.taskBannerEl = document.createElement('div');
+    this.taskBannerEl.className = 'screensense-task-banner';
+    this.taskBannerEl.textContent = this.currentTask;
+
+    // Insert at the top
+    if (this.bubbleEl.firstChild) {
+      this.bubbleEl.insertBefore(this.taskBannerEl, this.bubbleEl.firstChild);
+    } else {
+      this.bubbleEl.appendChild(this.taskBannerEl);
+    }
   }
 
   private sendFollowUp(): void {
@@ -1386,6 +1501,9 @@ export class CursorBubble {
     this.waveformBars = [];
     this.accumulatedText = '';
     this.currentTranscript = '';
+    this.currentTask = '';
+    this.completedSteps = [];
+    this.taskBannerEl = null;
     this.currentState = 'idle';
   }
 }

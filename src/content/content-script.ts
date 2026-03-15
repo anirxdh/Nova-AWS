@@ -55,6 +55,13 @@ async function onHold(event: Event): Promise<void> {
   // Stop TTS when user starts recording again
   stopTts();
 
+  // If bubble is visible and in executing/understanding state, cancel the agent loop first
+  if (bubble.isVisible()) {
+    chrome.runtime.sendMessage({ action: 'cancel-agent-loop' }).catch(() => {});
+    // Brief delay for cancel to propagate before starting new recording
+    await new Promise(r => setTimeout(r, 100));
+  }
+
   // Show the bubble at cursor position in listening state
   bubble.show(lastCursorX, lastCursorY);
   bubble.setState('listening');
@@ -193,6 +200,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     }
   } else if (message.action === 'bubble-reasoning') {
     bubble.showReasoning(message.text);
+  } else if (message.action === 'bubble-set-task') {
+    bubble.setTask(message.task);
+  } else if (message.action === 'bubble-done-summary') {
+    bubble.showDoneSummary(message.steps);
   }
 });
 

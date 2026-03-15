@@ -137,6 +137,15 @@ function broadcastStateChange(state: ExtensionState): void {
 
 // ─── Pipeline ───
 
+/** Send done state with completed steps summary */
+function sendAgentDone(tabId: number, actionHistory: ActionHistoryEntry[], label?: string): void {
+  if (actionHistory.length > 0) {
+    const stepSummaries = actionHistory.map(a => a.result || a.description);
+    sendToTab(tabId, { action: 'bubble-done-summary', steps: stepSummaries });
+  }
+  sendToTab(tabId, { action: 'bubble-state', state: 'done', label });
+}
+
 async function waitForDomStable(tabId: number, timeout = 2000, settleMs = 300): Promise<boolean> {
   try {
     const result = await chrome.tabs.sendMessage(tabId, {
@@ -169,6 +178,9 @@ async function runAgentLoop(
   agentLoopRunning = true;
 
   try {
+  // Show the task in the bubble
+  sendToTab(tabId, { action: 'bubble-set-task', task: originalCommand });
+
   // Transition bubble to executing state
   sendToTab(tabId, { action: 'bubble-state', state: 'executing' });
 
@@ -185,7 +197,7 @@ async function runAgentLoop(
     // Check for user cancellation at start of each outer iteration
     if (agentLoopCancelled) {
       agentLoopCancelled = false;
-      sendToTab(tabId, { action: 'bubble-state', state: 'done', label: 'Cancelled' });
+      sendAgentDone(tabId, actionHistory, 'Cancelled');
       return;
     }
 
@@ -259,7 +271,7 @@ async function runAgentLoop(
       // Check for cancellation after each action (fast response to Escape)
       if (agentLoopCancelled) {
         agentLoopCancelled = false;
-        sendToTab(tabId, { action: 'bubble-state', state: 'done', label: 'Cancelled' });
+        sendAgentDone(tabId, actionHistory, 'Cancelled');
         return;
       }
 
@@ -278,7 +290,7 @@ async function runAgentLoop(
     } catch {
       // Cannot re-observe — treat as done
       console.warn('[ScreenSense][loop] Could not capture screenshot for re-observation, treating as done');
-      sendToTab(tabId, { action: 'bubble-state', state: 'done' });
+      sendAgentDone(tabId, actionHistory);
       return;
     }
 
@@ -320,7 +332,7 @@ async function runAgentLoop(
     // Evaluate Nova's response
     if (continueResult.type === 'done') {
       // Task complete — signal done and exit
-      sendToTab(tabId, { action: 'bubble-state', state: 'done' });
+      sendAgentDone(tabId, actionHistory);
       return;
     }
 
@@ -339,7 +351,7 @@ async function runAgentLoop(
     if (continueResult.type === 'steps') {
       if (!continueResult.actions || continueResult.actions.length === 0) {
         // Empty steps — treat as done
-        sendToTab(tabId, { action: 'bubble-state', state: 'done' });
+        sendAgentDone(tabId, actionHistory);
         return;
       }
       // Continue the loop with the next batch of actions
@@ -356,7 +368,7 @@ async function runAgentLoop(
     stepIndex: actionHistory.length,
     totalSteps: 0,
   });
-  sendToTab(tabId, { action: 'bubble-state', state: 'done' });
+  sendAgentDone(tabId, actionHistory);
   } finally {
     agentLoopRunning = false;
   }
@@ -402,6 +414,7 @@ async function runPipeline(tabId: number, audioBase64: string, mimeType: string)
       return;
     }
 
+    sendToTab(tabId, { action: 'bubble-set-task', task: transcript });
     sendToTab(tabId, { action: 'bubble-state', state: 'understanding', label: transcript });
 
     // Capture DOM snapshot from content script
