@@ -2,11 +2,15 @@ import base64
 import json
 import os
 import re
+import time
 
 import httpx
 
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 GROQ_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
+
+# Max chars for DOM snapshot JSON to stay under token limits
+DOM_SNAPSHOT_MAX_CHARS = 12000
 
 
 def _extract_json(text: str) -> dict | list | None:
@@ -67,6 +71,32 @@ def _get_groq_key() -> str:
     if not key:
         raise ValueError("GROQ_API_KEY not set in backend/.env")
     return key
+
+
+def _truncate_dom(dom_snapshot: dict) -> dict:
+    """Truncate DOM snapshot to stay under token limits."""
+    dom_json = json.dumps(dom_snapshot)
+    if len(dom_json) <= DOM_SNAPSHOT_MAX_CHARS:
+        return dom_snapshot
+
+    # Progressively trim: text_content first, then lists/tables, then trim arrays
+    trimmed = dict(dom_snapshot)
+
+    # 1. Truncate text_content
+    if "text_content" in trimmed:
+        trimmed["text_content"] = trimmed["text_content"][:2000]
+
+    # 2. Remove less critical fields
+    for field in ["tables", "lists", "images", "headings"]:
+        if field in trimmed and len(json.dumps(trimmed)) > DOM_SNAPSHOT_MAX_CHARS:
+            trimmed[field] = trimmed[field][:3] if isinstance(trimmed[field], list) else trimmed[field]
+
+    # 3. Trim large arrays (keep first 15 items)
+    for field in ["buttons", "links", "inputs", "products"]:
+        if field in trimmed and isinstance(trimmed[field], list) and len(trimmed[field]) > 15:
+            trimmed[field] = trimmed[field][:15]
+
+    return trimmed
 
 
 CONTINUE_SYSTEM_PROMPT = """You are ScreenSense, a screen-aware AI execution agent in a Chrome extension.
@@ -176,7 +206,7 @@ IMPORTANT: Always look at the DOM snapshot FIRST to find the right selector. The
 
 
 def _call_groq(system_prompt: str, user_content: list[dict]) -> str:
-    """Call Groq chat completions API with vision support."""
+    """Call Groq chat completions API with vision support. Retries on rate limit."""
     api_key = _get_groq_key()
 
     messages = [
@@ -184,28 +214,38 @@ def _call_groq(system_prompt: str, user_content: list[dict]) -> str:
         {"role": "user", "content": user_content},
     ]
 
-    resp = httpx.post(
-        GROQ_API_URL,
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
-        json={
-            "model": GROQ_MODEL,
-            "messages": messages,
-            "max_tokens": 2048,
-            "temperature": 0.3,
-        },
-        timeout=60.0,
-    )
+    payload = {
+        "model": GROQ_MODEL,
+        "messages": messages,
+        "max_tokens": 2048,
+        "temperature": 0.3,
+    }
 
-    if resp.status_code == 401:
-        raise ValueError("Groq API key is invalid — check GROQ_API_KEY in backend/.env")
-    if resp.status_code != 200:
-        raise ValueError(f"Groq API error ({resp.status_code}): {resp.text[:500]}")
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
 
-    data = resp.json()
-    return data["choices"][0]["message"]["content"]
+    for attempt in range(3):
+        resp = httpx.post(GROQ_API_URL, headers=headers, json=payload, timeout=60.0)
+
+        if resp.status_code == 401:
+            raise ValueError("Groq API key is invalid — check GROQ_API_KEY in backend/.env")
+
+        if resp.status_code == 429:
+            # Rate limited — wait and retry
+            wait = 2.0 * (attempt + 1)
+            print(f"[ScreenSense] Groq rate limited, waiting {wait}s (attempt {attempt + 1}/3)")
+            time.sleep(wait)
+            continue
+
+        if resp.status_code != 200:
+            raise ValueError(f"Groq API error ({resp.status_code}): {resp.text[:500]}")
+
+        data = resp.json()
+        return data["choices"][0]["message"]["content"]
+
+    raise ValueError("Groq rate limit exceeded after 3 retries — wait a moment and try again")
 
 
 def reason_about_page(command: str, screenshot_base64: str, dom_snapshot: dict) -> dict:
@@ -230,7 +270,7 @@ def reason_about_page(command: str, screenshot_base64: str, dom_snapshot: dict) 
         },
         {
             "type": "text",
-            "text": f"DOM Snapshot:\n{json.dumps(dom_snapshot)}",
+            "text": f"DOM Snapshot:\n{json.dumps(_truncate_dom(dom_snapshot))}",
         },
         {
             "type": "text",
@@ -289,7 +329,7 @@ def reason_continue(
         },
         {
             "type": "text",
-            "text": f"DOM Snapshot:\n{json.dumps(dom_snapshot)}",
+            "text": f"DOM Snapshot:\n{json.dumps(_truncate_dom(dom_snapshot))}",
         },
         {
             "type": "text",
