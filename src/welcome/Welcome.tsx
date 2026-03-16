@@ -11,10 +11,10 @@ const KeyboardIllustration: React.FC = () => (
     {/* Glow behind the key */}
     <defs>
       <radialGradient id="keyGlow" cx="50%" cy="50%" r="50%">
-        <stop offset="0%" stopColor="#FF9900" stopOpacity="0.6">
+        <stop offset="0%" stopColor="#C47A00" stopOpacity="0.6">
           <animate attributeName="stopOpacity" values="0.6;0.3;0.6" dur="2s" repeatCount="indefinite" />
         </stop>
-        <stop offset="100%" stopColor="#FF9900" stopOpacity="0" />
+        <stop offset="100%" stopColor="#C47A00" stopOpacity="0" />
       </radialGradient>
       <linearGradient id="cardGrad" x1="0" y1="0" x2="0" y2="1">
         <stop offset="0%" stopColor="#334155" />
@@ -40,7 +40,7 @@ const KeyboardIllustration: React.FC = () => (
             width={14}
             height={14}
             rx={3}
-            fill={isBacktick ? '#FF9900' : '#475569'}
+            fill={isBacktick ? '#C47A00' : '#475569'}
             opacity={isBacktick ? 1 : 0.4}
           >
             {isBacktick && (
@@ -67,12 +67,12 @@ const KeyboardIllustration: React.FC = () => (
         calcMode="spline"
         keySplines="0.4 0 0.2 1; 0.4 0 0.2 1"
       />
-      <circle cx="37" cy="42" r="6" fill="#FFB84D" opacity="0.5" />
-      <circle cx="37" cy="42" r="3" fill="#FFB84D" opacity="0.8" />
+      <circle cx="37" cy="42" r="6" fill="#A86A00" opacity="0.5" />
+      <circle cx="37" cy="42" r="3" fill="#A86A00" opacity="0.8" />
     </g>
 
     {/* Ripple from backtick key */}
-    <circle cx="37" cy="57" r="8" fill="none" stroke="#FF9900" strokeWidth="1" opacity="0">
+    <circle cx="37" cy="57" r="8" fill="none" stroke="#C47A00" strokeWidth="1" opacity="0">
       <animate attributeName="r" values="8;24" dur="2s" repeatCount="indefinite" />
       <animate attributeName="opacity" values="0.6;0" dur="2s" repeatCount="indefinite" />
     </circle>
@@ -83,14 +83,14 @@ const MicrophoneIllustration: React.FC<{ granted: boolean }> = ({ granted }) => 
   <svg viewBox="0 0 200 180" className="w-48 h-auto mx-auto" aria-hidden="true">
     <defs>
       <radialGradient id="micGlow" cx="50%" cy="40%" r="50%">
-        <stop offset="0%" stopColor={granted ? '#FF9900' : '#FF9900'} stopOpacity="0.5">
+        <stop offset="0%" stopColor={granted ? '#C47A00' : '#C47A00'} stopOpacity="0.5">
           <animate attributeName="stopOpacity" values="0.5;0.2;0.5" dur="2s" repeatCount="indefinite" />
         </stop>
-        <stop offset="100%" stopColor={granted ? '#FF9900' : '#FF9900'} stopOpacity="0" />
+        <stop offset="100%" stopColor={granted ? '#C47A00' : '#C47A00'} stopOpacity="0" />
       </radialGradient>
       <linearGradient id="micBody" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stopColor={granted ? '#FFB84D' : '#FFB84D'} />
-        <stop offset="100%" stopColor={granted ? '#FF9900' : '#FF9900'} />
+        <stop offset="0%" stopColor={granted ? '#A86A00' : '#A86A00'} />
+        <stop offset="100%" stopColor={granted ? '#C47A00' : '#C47A00'} />
       </linearGradient>
     </defs>
 
@@ -103,7 +103,7 @@ const MicrophoneIllustration: React.FC<{ granted: boolean }> = ({ granted }) => 
         <path
           d={`M${100 - r} 70 Q${100 - r} ${70 - r * 0.6} 100 ${70 - r * 0.6} Q${100 + r} ${70 - r * 0.6} ${100 + r} 70`}
           fill="none"
-          stroke={granted ? '#FF9900' : '#FF9900'}
+          stroke={granted ? '#C47A00' : '#C47A00'}
           strokeWidth="1.5"
           strokeLinecap="round"
           opacity="0"
@@ -128,14 +128,14 @@ const MicrophoneIllustration: React.FC<{ granted: boolean }> = ({ granted }) => 
     ))}
 
     {/* Mic stand */}
-    <path d="M80 95 Q80 115 100 115 Q120 115 120 95" fill="none" stroke={granted ? '#FFB84D' : '#FFB84D'} strokeWidth="2.5" strokeLinecap="round" />
-    <line x1="100" y1="115" x2="100" y2="135" stroke={granted ? '#FFB84D' : '#FFB84D'} strokeWidth="2.5" strokeLinecap="round" />
-    <line x1="88" y1="135" x2="112" y2="135" stroke={granted ? '#FFB84D' : '#FFB84D'} strokeWidth="2.5" strokeLinecap="round" />
+    <path d="M80 95 Q80 115 100 115 Q120 115 120 95" fill="none" stroke={granted ? '#A86A00' : '#A86A00'} strokeWidth="2.5" strokeLinecap="round" />
+    <line x1="100" y1="115" x2="100" y2="135" stroke={granted ? '#A86A00' : '#A86A00'} strokeWidth="2.5" strokeLinecap="round" />
+    <line x1="88" y1="135" x2="112" y2="135" stroke={granted ? '#A86A00' : '#A86A00'} strokeWidth="2.5" strokeLinecap="round" />
 
     {/* Checkmark overlay when granted */}
     {granted && (
       <g>
-        <circle cx="130" cy="60" r="14" fill="#E88B00" />
+        <circle cx="130" cy="60" r="14" fill="#9A5C00" />
         <polyline
           points="122,60 128,66 138,54"
           fill="none"
@@ -157,14 +157,14 @@ const RocketIllustration: React.FC = () => (
   <svg viewBox="0 0 200 200" className="w-48 h-auto mx-auto" aria-hidden="true">
     <defs>
       <radialGradient id="launchGlow" cx="50%" cy="60%" r="50%">
-        <stop offset="0%" stopColor="#FF9900" stopOpacity="0.4">
+        <stop offset="0%" stopColor="#C47A00" stopOpacity="0.4">
           <animate attributeName="stopOpacity" values="0.4;0.2;0.4" dur="3s" repeatCount="indefinite" />
         </stop>
-        <stop offset="100%" stopColor="#FF9900" stopOpacity="0" />
+        <stop offset="100%" stopColor="#C47A00" stopOpacity="0" />
       </radialGradient>
       <linearGradient id="rocketBody" x1="0" y1="0" x2="0" y2="1">
         <stop offset="0%" stopColor="#e0e7ff" />
-        <stop offset="100%" stopColor="#FFB84D" />
+        <stop offset="100%" stopColor="#A86A00" />
       </linearGradient>
       <linearGradient id="flame" x1="0" y1="0" x2="0" y2="1">
         <stop offset="0%" stopColor="#fb923c" />
@@ -207,14 +207,14 @@ const RocketIllustration: React.FC = () => (
       <path d="M88 130 L88 95 Q88 65 100 55 Q112 65 112 95 L112 130 Z" fill="url(#rocketBody)" />
 
       {/* Window */}
-      <circle cx="100" cy="95" r="8" fill="#232F3E" stroke="#FFB84D" strokeWidth="1.5" />
+      <circle cx="100" cy="95" r="8" fill="#232F3E" stroke="#A86A00" strokeWidth="1.5" />
       <circle cx="100" cy="95" r="5" fill="#1A2332">
-        <animate attributeName="fill" values="#1A2332;#E88B00;#1A2332" dur="2s" repeatCount="indefinite" />
+        <animate attributeName="fill" values="#1A2332;#9A5C00;#1A2332" dur="2s" repeatCount="indefinite" />
       </circle>
 
       {/* Fins */}
-      <path d="M88 120 L75 138 L88 132 Z" fill="#FF9900" />
-      <path d="M112 120 L125 138 L112 132 Z" fill="#FF9900" />
+      <path d="M88 120 L75 138 L88 132 Z" fill="#C47A00" />
+      <path d="M112 120 L125 138 L112 132 Z" fill="#C47A00" />
 
       {/* Nose highlight */}
       <path d="M95 70 Q95 60 100 55" fill="none" stroke="#fff" strokeWidth="1.5" opacity="0.4" strokeLinecap="round" />
@@ -506,19 +506,19 @@ const Welcome: React.FC = () => {
         }
         .orb-1 {
           width: 400px; height: 400px;
-          background: radial-gradient(circle, rgba(255, 153, 0, 0.15), transparent);
+          background: radial-gradient(circle, rgba(196, 122, 0, 0.08), transparent);
           top: -100px; left: -100px;
           animation: orbFloat1 15s ease-in-out infinite;
         }
         .orb-2 {
           width: 350px; height: 350px;
-          background: radial-gradient(circle, rgba(232, 139, 0, 0.12), transparent);
+          background: radial-gradient(circle, rgba(168, 106, 0, 0.06), transparent);
           bottom: -80px; right: -80px;
           animation: orbFloat2 18s ease-in-out infinite;
         }
         .orb-3 {
           width: 250px; height: 250px;
-          background: radial-gradient(circle, rgba(0, 168, 225, 0.1), transparent);
+          background: radial-gradient(circle, rgba(0, 120, 160, 0.05), transparent);
           top: 50%; left: 60%;
           animation: orbFloat3 12s ease-in-out infinite;
         }
@@ -540,7 +540,7 @@ const Welcome: React.FC = () => {
           font-size: 22px;
           font-weight: 700;
           letter-spacing: -0.03em;
-          background: linear-gradient(135deg, #FFB84D, #FF9900);
+          background: linear-gradient(135deg, #A86A00, #C47A00);
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
           background-clip: text;
@@ -573,8 +573,8 @@ const Welcome: React.FC = () => {
           transition: background 0.5s ease;
         }
         .progress-line.filled {
-          background: linear-gradient(90deg, #FF9900, #FFB84D);
-          box-shadow: 0 0 8px rgba(255, 153, 0, 0.3);
+          background: linear-gradient(90deg, #C47A00, #A86A00);
+          box-shadow: 0 0 8px rgba(196, 122, 0, 0.12);
         }
         .progress-dot {
           width: 32px; height: 32px;
@@ -587,15 +587,15 @@ const Welcome: React.FC = () => {
           flex-shrink: 0;
         }
         .progress-dot.active {
-          background: linear-gradient(135deg, #E88B00, #FF9900);
+          background: linear-gradient(135deg, #9A5C00, #C47A00);
           border-color: rgba(255, 153, 0, 0.6);
           color: #fff;
-          box-shadow: 0 0 20px rgba(255, 153, 0, 0.4);
+          box-shadow: 0 0 20px rgba(196, 122, 0, 0.15);
           transform: scale(1.1);
         }
         .progress-dot.done {
-          background: linear-gradient(135deg, #FF9900, #E88B00);
-          border-color: rgba(255, 153, 0, 0.4);
+          background: linear-gradient(135deg, #C47A00, #9A5C00);
+          border-color: rgba(196, 122, 0, 0.15);
           color: #fff;
         }
 
@@ -628,7 +628,7 @@ const Welcome: React.FC = () => {
           line-height: 1.2;
         }
         .gradient-text {
-          background: linear-gradient(135deg, #FFB84D, #FF9900, #00A8E1);
+          background: linear-gradient(135deg, #A86A00, #C47A00, #00A8E1);
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
           background-clip: text;
@@ -644,24 +644,24 @@ const Welcome: React.FC = () => {
         /* ─── Key Badge ─── */
         .key-badge {
           display: inline-flex; align-items: center; justify-content: center;
-          background: rgba(255, 153, 0, 0.15);
-          border: 1px solid rgba(255, 153, 0, 0.3);
+          background: rgba(196, 122, 0, 0.08);
+          border: 1px solid rgba(196, 122, 0, 0.12);
           border-radius: 6px;
           padding: 2px 10px;
           font-family: 'SF Mono', 'Fira Code', monospace;
           font-size: 15px; font-weight: 600;
-          color: #FFB84D;
+          color: #A86A00;
           box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
         .key-badge-sm {
           display: inline-flex; align-items: center; justify-content: center;
-          background: rgba(255, 153, 0, 0.15);
-          border: 1px solid rgba(255, 153, 0, 0.3);
+          background: rgba(196, 122, 0, 0.08);
+          border: 1px solid rgba(196, 122, 0, 0.12);
           border-radius: 4px;
           padding: 1px 6px;
           font-family: 'SF Mono', 'Fira Code', monospace;
           font-size: 12px; font-weight: 600;
-          color: #FFB84D;
+          color: #A86A00;
         }
 
         /* ─── Hint Box ─── */
@@ -696,20 +696,20 @@ const Welcome: React.FC = () => {
         .btn:hover::before { opacity: 1; }
 
         .btn-primary {
-          background: linear-gradient(135deg, #E88B00, #FF9900);
+          background: linear-gradient(135deg, #9A5C00, #C47A00);
           color: #fff;
-          box-shadow: 0 4px 16px rgba(255, 153, 0, 0.3), inset 0 1px 0 rgba(255,255,255,0.1);
+          box-shadow: 0 4px 16px rgba(196, 122, 0, 0.12), inset 0 1px 0 rgba(255,255,255,0.1);
         }
         .btn-primary:hover {
           transform: translateY(-1px);
-          box-shadow: 0 8px 24px rgba(255, 153, 0, 0.4), inset 0 1px 0 rgba(255,255,255,0.1);
+          box-shadow: 0 8px 24px rgba(196, 122, 0, 0.15), inset 0 1px 0 rgba(255,255,255,0.1);
         }
         .btn-primary:active { transform: translateY(0); }
 
         .btn-mic {
           background: rgba(255, 153, 0, 0.1);
-          border: 1px solid rgba(255, 153, 0, 0.3);
-          color: #FFB84D;
+          border: 1px solid rgba(196, 122, 0, 0.12);
+          color: #A86A00;
           margin-bottom: 0.75rem;
         }
         .btn-mic:hover {
@@ -728,15 +728,15 @@ const Welcome: React.FC = () => {
         }
 
         .btn-launch {
-          background: linear-gradient(135deg, #E88B00, #FF9900);
+          background: linear-gradient(135deg, #9A5C00, #C47A00);
           color: #fff;
-          box-shadow: 0 4px 20px rgba(255, 153, 0, 0.35), inset 0 1px 0 rgba(255,255,255,0.15);
+          box-shadow: 0 4px 20px rgba(196, 122, 0, 0.15), inset 0 1px 0 rgba(255,255,255,0.15);
           font-size: 16px;
           padding: 16px 24px;
         }
         .btn-launch:hover {
           transform: translateY(-1px);
-          box-shadow: 0 8px 28px rgba(255, 153, 0, 0.45), inset 0 1px 0 rgba(255,255,255,0.15);
+          box-shadow: 0 8px 28px rgba(196, 122, 0, 0.18), inset 0 1px 0 rgba(255,255,255,0.15);
         }
 
         /* ─── Status Boxes ─── */
@@ -756,7 +756,7 @@ const Welcome: React.FC = () => {
           border-radius: 12px;
           padding: 12px 16px;
           margin-bottom: 1rem;
-          font-size: 14px; font-weight: 500; color: #FFB84D;
+          font-size: 14px; font-weight: 500; color: #A86A00;
           animation: successPop 0.4s cubic-bezier(0.16, 1, 0.3, 1);
         }
         @keyframes successPop {
@@ -777,17 +777,17 @@ const Welcome: React.FC = () => {
         .how-icon {
           width: 44px; height: 44px;
           background: rgba(255, 153, 0, 0.08);
-          border: 1px solid rgba(255, 153, 0, 0.15);
+          border: 1px solid rgba(196, 122, 0, 0.08);
           border-radius: 14px;
           display: flex; align-items: center; justify-content: center;
-          color: #FFB84D;
+          color: #A86A00;
           transition: all 0.3s ease;
         }
         .how-step:hover .how-icon {
-          background: rgba(255, 153, 0, 0.15);
-          border-color: rgba(255, 153, 0, 0.3);
+          background: rgba(196, 122, 0, 0.08);
+          border-color: rgba(196, 122, 0, 0.12);
           transform: translateY(-2px);
-          box-shadow: 0 4px 12px rgba(255, 153, 0, 0.15);
+          box-shadow: 0 4px 12px rgba(196, 122, 0, 0.08);
         }
         .how-label {
           font-size: 12px; font-weight: 500;
@@ -797,7 +797,7 @@ const Welcome: React.FC = () => {
         }
         .how-connector {
           width: 24px; height: 1px;
-          background: rgba(255, 153, 0, 0.15);
+          background: rgba(196, 122, 0, 0.08);
           margin-bottom: 28px;
           flex-shrink: 0;
         }
