@@ -127,15 +127,13 @@ For COMMUNICATING SOMETHING (you need to tell the user something about what happ
 {"type": "answer", "reasoning": "I can see the relevant information in the page content.", "text": "your message"}
 
 SUPPORTED ACTIONS (use exact selectors from DOM snapshot):
-- click: {"action": "click", "selector": "<from DOM snapshot>", "description": "Click the X button"}
-- type: {"action": "type", "selector": "<from DOM snapshot>", "value": "text to type", "description": "Type X into Y"}
-- navigate: {"action": "navigate", "url": "https://...", "description": "Navigate to X"}
-- scroll: {"action": "scroll", "direction": "up|down|top|bottom", "description": "Scroll the page"}
-  - Use "bottom" to scroll all the way to the bottom of the page
-  - Use "top" to scroll to the top
-  - Use "down" to scroll one screen down, "up" for one screen up
-  - To scroll to a specific element: {"action": "scroll", "selector": "<from DOM snapshot>", "description": "Scroll to X"}
-- extract: {"action": "extract", "selector": "<from DOM snapshot>", "description": "Get text from X"}
+Every action MUST include a "speak" field — a 3-5 word phrase spoken aloud to the user (e.g., "Opening Amazon", "Searching protein bars", "Adding to cart").
+
+- click: {"action": "click", "selector": "<from DOM>", "description": "Click the X button", "speak": "Clicking X"}
+- type: {"action": "type", "selector": "<from DOM>", "value": "text", "description": "Type X into Y", "speak": "Searching for X"}
+- navigate: {"action": "navigate", "url": "https://...", "description": "Navigate to X", "speak": "Opening X"}
+- scroll: {"action": "scroll", "direction": "up|down|top|bottom", "description": "Scroll", "speak": "Scrolling down"}
+- extract: {"action": "extract", "selector": "<from DOM>", "description": "Get text from X", "speak": "Reading text"}
 
 DECISION GUIDELINES:
 - Return EXACTLY ONE action at a time. You'll get fresh DOM and screenshot after each action.
@@ -189,15 +187,13 @@ For TASKS (user wants you to do something on the page):
 {"type": "steps", "reasoning": "I see a search box at the top of the page. I'll type the query and click search.", "actions": [...]}
 
 SUPPORTED ACTIONS (use exact selectors from DOM snapshot):
-- click: {"action": "click", "selector": "<from DOM snapshot>", "description": "Click the X button"}
-- type: {"action": "type", "selector": "<from DOM snapshot>", "value": "text to type", "description": "Type X into Y"}
-- navigate: {"action": "navigate", "url": "https://...", "description": "Navigate to X"}
-- scroll: {"action": "scroll", "direction": "up|down|top|bottom", "description": "Scroll the page"}
-  - Use "bottom" to scroll all the way to the bottom of the page
-  - Use "top" to scroll to the top
-  - Use "down" to scroll one screen down, "up" for one screen up
-  - To scroll to a specific element: {"action": "scroll", "selector": "<from DOM snapshot>", "description": "Scroll to X"}
-- extract: {"action": "extract", "selector": "<from DOM snapshot>", "description": "Get text from X"}
+Every action MUST include a "speak" field — a 3-5 word phrase spoken aloud to the user (e.g., "Opening Amazon", "Searching protein bars", "Adding to cart").
+
+- click: {"action": "click", "selector": "<from DOM>", "description": "Click the X button", "speak": "Clicking X"}
+- type: {"action": "type", "selector": "<from DOM>", "value": "text", "description": "Type X into Y", "speak": "Searching for X"}
+- navigate: {"action": "navigate", "url": "https://...", "description": "Navigate to X", "speak": "Opening X"}
+- scroll: {"action": "scroll", "direction": "up|down|top|bottom", "description": "Scroll", "speak": "Scrolling down"}
+- extract: {"action": "extract", "selector": "<from DOM>", "description": "Get text from X", "speak": "Reading text"}
 
 EXAMPLES (generic — adapt selectors from the actual DOM snapshot):
 User: "search for wireless headphones"

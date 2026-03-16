@@ -186,6 +186,7 @@ export interface TaskResponse {
     url?: string;
     direction?: string;
     description: string;
+    speak?: string;  // 3-5 word TTS phrase from Nova
   }>;
 }
 

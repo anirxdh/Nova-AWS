@@ -176,19 +176,34 @@ function getDebugLog(): string {
 // ─── Pipeline ───
 
 /** Send done state with completed steps summary */
+/** Convert an action result to a short 3-7 word TTS phrase */
+function shortSpeak(result: string): string {
+  if (result.startsWith('Navigating to')) return 'Going to ' + result.replace('Navigating to https://www.', '').replace('Navigating to https://', '').split('/')[0];
+  if (result.startsWith('Navigated to')) return 'Opened ' + result.replace('Navigated to https://www.', '').replace('Navigated to https://', '').split('/')[0];
+  if (result.startsWith("Typed '")) {
+    const match = result.match(/Typed '([^']+)'/);
+    return match ? `Searching ${match[1].slice(0, 20)}` : 'Typing';
+  }
+  if (result.startsWith("Clicked '#add-to-cart") || result.includes('Add to Cart') || result.includes('Add to cart')) return 'Added to cart';
+  if (result.startsWith("Clicked '")) {
+    const match = result.match(/Clicked '([^']+)'/);
+    const label = match ? match[1].slice(0, 25) : 'element';
+    return `Clicking ${label}`;
+  }
+  if (result.startsWith('Scrolled')) return 'Scrolling';
+  if (result.startsWith('Extracted')) return 'Reading text';
+  if (result.includes('navigated')) return 'Page loaded';
+  return result.slice(0, 30);
+}
+
 function sendAgentDone(tabId: number, actionHistory: ActionHistoryEntry[], label?: string): void {
   if (actionHistory.length > 0) {
     const stepSummaries = actionHistory.map(a => a.result || a.description);
     sendToTab(tabId, { action: 'bubble-done-summary', steps: stepSummaries });
 
-    // Speak a brief summary of what was done
-    const successSteps = actionHistory.filter(a => a.result && !a.result.startsWith('FAILED'));
-    if (successSteps.length > 0 && label !== 'Cancelled') {
-      const lastStep = successSteps[successSteps.length - 1];
-      const summary = successSteps.length === 1
-        ? `Done. ${lastStep.result}.`
-        : `Done. Completed ${successSteps.length} steps. ${lastStep.result}.`;
-      sendToTab(tabId, { action: 'tts-summary', summary });
+    // Speak "All done" when task completes
+    if (label !== 'Cancelled') {
+      sendToTab(tabId, { action: 'tts-summary', summary: 'All done.' });
     }
   }
   sendToTab(tabId, { action: 'bubble-state', state: 'done', label });
@@ -352,7 +367,7 @@ async function runAgentLoop(
           result: `FAILED: ${result.error}. Try a different selector or approach.`,
         });
       } else {
-        // Success — show result and record
+        // Success — show result, speak short phrase, and record
         sendToTab(tabId, {
           action: 'bubble-step',
           stepName: result.summary,
@@ -360,6 +375,10 @@ async function runAgentLoop(
           totalSteps: 0,
         });
         actionHistory.push({ description: step.description, result: result.summary });
+
+        // Speak short action phrase — use Nova's "speak" field if available, else generate from result
+        const speakText = (step as any).speak || shortSpeak(result.summary);
+        sendToTab(tabId, { action: 'tts-summary', summary: speakText });
       }
 
       // Navigate actions need special handling — wait for new page to load
