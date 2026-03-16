@@ -180,6 +180,16 @@ function sendAgentDone(tabId: number, actionHistory: ActionHistoryEntry[], label
   if (actionHistory.length > 0) {
     const stepSummaries = actionHistory.map(a => a.result || a.description);
     sendToTab(tabId, { action: 'bubble-done-summary', steps: stepSummaries });
+
+    // Speak a brief summary of what was done
+    const successSteps = actionHistory.filter(a => a.result && !a.result.startsWith('FAILED'));
+    if (successSteps.length > 0 && label !== 'Cancelled') {
+      const lastStep = successSteps[successSteps.length - 1];
+      const summary = successSteps.length === 1
+        ? `Done. ${lastStep.result}.`
+        : `Done. Completed ${successSteps.length} steps. ${lastStep.result}.`;
+      sendToTab(tabId, { action: 'tts-summary', summary });
+    }
   }
   sendToTab(tabId, { action: 'bubble-state', state: 'done', label });
   dbg(`=== AGENT DONE === steps=${actionHistory.length} label=${label || 'complete'}`);
