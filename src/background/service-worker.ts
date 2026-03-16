@@ -5,7 +5,7 @@ import { captureScreenshot } from './screenshot';
 import { transcribeAudio, transcribeAudioStreaming, connectSSE, checkBackendHealth, sendTask, sendTaskContinue, TaskResponse, ActionHistoryEntry } from './api/backend-client';
 // groq-vision imports retained for Phase 8+ migration
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-import { streamGeminiResponse, generateTtsSummary } from './api/groq-vision';
+import { streamVisionResponse, generateTtsSummary } from './api/groq-vision';
 
 const MAX_AGENT_ITERATIONS = 25;
 

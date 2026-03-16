@@ -15,10 +15,10 @@ function buildSystemPrompt(level: ExplanationLevel): string {
 }
 
 /**
- * Stream a multimodal response from Groq vision model given a screenshot, text query,
+ * Stream a multimodal vision response given a screenshot, text query,
  * and optional conversation history for follow-up context.
  */
-export async function streamGeminiResponse(
+export async function streamVisionResponse(
   screenshotDataUrl: string,
   query: string,
   apiKey: string,

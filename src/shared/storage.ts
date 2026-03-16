@@ -29,10 +29,10 @@ export async function setSetupComplete(): Promise<void> {
   await chrome.storage.local.set({ [STORAGE_KEYS.SETUP_COMPLETE]: true });
 }
 
-// API keys loaded from chrome.storage — set via Settings page
+// API keys loaded from chrome.storage
 const DEV_API_KEYS = {
   groqKey: '',
-  elevenLabsKey: 'sk_9e788bb9673e55bfe76cd64da36cee9130d5bd28d64f71a8',
+  elevenLabsKey: '',
 };
 
 export async function getApiKeys(): Promise<{

@@ -102,7 +102,7 @@ jest.mock('../background/api/backend-client', () => ({
 }));
 
 jest.mock('../background/api/groq-vision', () => ({
-  streamGeminiResponse: jest.fn(),
+  streamVisionResponse: jest.fn(),
   generateTtsSummary: jest.fn(),
 }));
 
