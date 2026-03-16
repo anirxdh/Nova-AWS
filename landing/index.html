@@ -35,8 +35,8 @@
       --border-subtle: rgba(0, 0, 0, 0.08);
       --border-accent: rgba(232, 139, 0, 0.35);
       --text-primary: #1A1A2E;
-      --text-secondary: rgba(100, 70, 20, 0.7);
-      --text-muted: rgba(100, 80, 40, 0.45);
+      --text-secondary: rgba(26, 26, 46, 0.55);
+      --text-muted: rgba(26, 26, 46, 0.35);
       --accent: #E88B00;
       --accent-light: #FF9900;
       --accent-glow: rgba(255, 153, 0, 0.1);
@@ -46,8 +46,9 @@
     [data-theme="light"] body { color: #1A1A2E; }
     [data-theme="light"] nav { background: rgba(255,255,255,0.85); backdrop-filter: blur(20px); border-bottom-color: rgba(0,0,0,0.06); }
     [data-theme="light"] .nav-brand span { color: #1A1A2E; }
-    [data-theme="light"] .nav-links a { color: rgba(26,26,46,0.6); }
+    [data-theme="light"] .nav-links a { color: rgba(26,26,46,0.65); }
     [data-theme="light"] .nav-links a:hover { color: #1A1A2E; }
+    [data-theme="light"] .nav-cta { color: #fff !important; background: linear-gradient(135deg, #E88B00, #FF9900); border-color: transparent; }
     [data-theme="light"] .hero h1 { color: #1A1A2E; }
     [data-theme="light"] .hero-sub { color: rgba(26,26,46,0.6); }
     [data-theme="light"] .section-title { color: #1A1A2E; }
@@ -60,7 +61,7 @@
     [data-theme="light"] .ambient-orb.orb-1 { background: radial-gradient(circle, rgba(255,153,0,0.12), transparent); }
     [data-theme="light"] .ambient-orb.orb-2 { background: radial-gradient(circle, rgba(255,184,77,0.1), transparent); }
     [data-theme="light"] .ambient-orb.orb-3 { background: radial-gradient(circle, rgba(232,139,0,0.08), transparent); }
-    [data-theme="light"] canvas { opacity: 0.12; }
+    [data-theme="light"] canvas { opacity: 0.25; }
 
     /* Light theme — cards & sections */
     [data-theme="light"] .hero-demo { box-shadow: 0 20px 60px rgba(0,0,0,0.1), 0 0 0 1px rgba(0,0,0,0.05); }
@@ -69,7 +70,8 @@
     [data-theme="light"] .step { background: rgba(255,255,255,0.6); border-color: rgba(0,0,0,0.06); }
     [data-theme="light"] .step:hover { background: rgba(255,255,255,0.85); border-color: rgba(232,139,0,0.2); }
     [data-theme="light"] .step-number { background: linear-gradient(135deg, #E88B00, #FF9900); color: #fff; }
-    [data-theme="light"] .hero-badge { background: rgba(232,139,0,0.08); border-color: rgba(232,139,0,0.2); color: #B06C00; }
+    [data-theme="light"] .hero-badge { background: rgba(232,139,0,0.08); border-color: rgba(232,139,0,0.2); color: #8B5E00; }
+    [data-theme="light"] .hero-badge::before { background: #E88B00; }
     [data-theme="light"] .key-vis { background: rgba(232,139,0,0.1); border-color: rgba(232,139,0,0.25); color: #B06C00; }
 
     /* Light theme — buttons */
@@ -254,11 +256,11 @@
     .nav-links a {
       font-size: 14px;
       font-weight: 500;
-      color: var(--text-secondary);
+      color: rgba(255, 255, 255, 0.7);
       transition: color 0.2s;
     }
 
-    .nav-links a:hover { color: var(--text-primary); }
+    .nav-links a:hover { color: #fff; }
 
     .nav-cta {
       padding: 10px 24px;
@@ -267,7 +269,7 @@
       border: 1px solid var(--border-accent);
       font-size: 14px;
       font-weight: 600;
-      color: var(--accent-light) !important;
+      color: #fff !important;
       transition: all 0.3s ease;
     }
 
@@ -294,7 +296,7 @@
       border: 1px solid var(--border-accent);
       font-size: 13px;
       font-weight: 500;
-      color: var(--accent-light);
+      color: rgba(255, 255, 255, 0.85);
       margin-bottom: 32px;
       animation: fadeUp 0.8s ease both;
     }
@@ -1280,6 +1282,7 @@
       const next = current === 'light' ? 'dark' : 'light';
       html.setAttribute('data-theme', next);
       localStorage.setItem('screensense-theme', next);
+      if (window._recreateParticles) window._recreateParticles();
     }
     // Load saved theme
     (function() {
@@ -1363,6 +1366,8 @@
 
       mouse = { x: -9999, y: -9999 };
 
+      function isLight() { return document.documentElement.getAttribute('data-theme') === 'light'; }
+
       function resize() {
         w = canvas.width = window.innerWidth;
         h = canvas.height = window.innerHeight;
@@ -1377,7 +1382,7 @@
             vx: (Math.random() - 0.5) * 0.4,
             vy: (Math.random() - 0.5) * 0.4,
             r: Math.random() * 1.5 + 0.5,
-            hue: 30 + Math.random() * 20,
+            hue: isLight() ? 190 + Math.random() * 20 : 30 + Math.random() * 20,
             alpha: Math.random() * 0.4 + 0.1,
           });
         }
@@ -1398,7 +1403,7 @@
               ctx.beginPath();
               ctx.moveTo(particles[i].x, particles[i].y);
               ctx.lineTo(particles[j].x, particles[j].y);
-              ctx.strokeStyle = `rgba(255, 153, 0, ${opacity})`;
+              ctx.strokeStyle = isLight() ? `rgba(74, 143, 168, ${opacity})` : `rgba(255, 153, 0, ${opacity})`;
               ctx.lineWidth = 0.5;
               ctx.stroke();
             }
@@ -1413,7 +1418,7 @@
             ctx.beginPath();
             ctx.moveTo(particles[i].x, particles[i].y);
             ctx.lineTo(mouse.x, mouse.y);
-            ctx.strokeStyle = `rgba(255, 184, 77, ${opacity})`;
+            ctx.strokeStyle = isLight() ? `rgba(74, 143, 168, ${opacity})` : `rgba(255, 184, 77, ${opacity})`;
             ctx.lineWidth = 0.8;
             ctx.stroke();
           }
@@ -1487,6 +1492,7 @@
       resize();
       createParticles();
       loop();
+      window._recreateParticles = createParticles;
     })();
   </script>
 </body>
