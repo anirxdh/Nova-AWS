@@ -61,7 +61,7 @@
     [data-theme="light"] .ambient-orb.orb-1 { background: radial-gradient(circle, rgba(255,153,0,0.12), transparent); }
     [data-theme="light"] .ambient-orb.orb-2 { background: radial-gradient(circle, rgba(255,184,77,0.1), transparent); }
     [data-theme="light"] .ambient-orb.orb-3 { background: radial-gradient(circle, rgba(232,139,0,0.08), transparent); }
-    [data-theme="light"] canvas { opacity: 0.25; }
+    [data-theme="light"] canvas { opacity: 0.7; }
 
     /* Light theme — cards & sections */
     [data-theme="light"] .hero-demo { box-shadow: 0 20px 60px rgba(0,0,0,0.1), 0 0 0 1px rgba(0,0,0,0.05); }
@@ -1406,12 +1406,13 @@
             const dist = Math.sqrt(dx * dx + dy * dy);
 
             if (dist < CONNECT_DIST) {
-              const opacity = (1 - dist / CONNECT_DIST) * 0.15;
+              const light = isLight();
+              const opacity = (1 - dist / CONNECT_DIST) * (light ? 0.35 : 0.15);
               ctx.beginPath();
               ctx.moveTo(particles[i].x, particles[i].y);
               ctx.lineTo(particles[j].x, particles[j].y);
-              ctx.strokeStyle = isLight() ? `rgba(74, 143, 168, ${opacity})` : `rgba(255, 153, 0, ${opacity})`;
-              ctx.lineWidth = 0.5;
+              ctx.strokeStyle = light ? `rgba(42, 100, 140, ${opacity})` : `rgba(255, 153, 0, ${opacity})`;
+              ctx.lineWidth = light ? 0.8 : 0.5;
               ctx.stroke();
             }
           }
@@ -1421,12 +1422,13 @@
           const mdy = particles[i].y - mouse.y;
           const mDist = Math.sqrt(mdx * mdx + mdy * mdy);
           if (mDist < MOUSE_DIST) {
-            const opacity = (1 - mDist / MOUSE_DIST) * 0.3;
+            const light2 = isLight();
+            const opacity = (1 - mDist / MOUSE_DIST) * (light2 ? 0.5 : 0.3);
             ctx.beginPath();
             ctx.moveTo(particles[i].x, particles[i].y);
             ctx.lineTo(mouse.x, mouse.y);
-            ctx.strokeStyle = isLight() ? `rgba(74, 143, 168, ${opacity})` : `rgba(255, 184, 77, ${opacity})`;
-            ctx.lineWidth = 0.8;
+            ctx.strokeStyle = light2 ? `rgba(42, 100, 140, ${opacity})` : `rgba(255, 184, 77, ${opacity})`;
+            ctx.lineWidth = light2 ? 1.2 : 0.8;
             ctx.stroke();
           }
         }
