@@ -501,7 +501,9 @@ async function runAgentLoop(
 
     // Evaluate Nova's response
     if (continueResult.type === 'done') {
-      // Task complete — signal done and exit
+      // Task complete — speak the model's summary if available
+      const doneSummary = continueResult.summary || 'All done.';
+      sendToTab(tabId, { action: 'tts-summary', summary: doneSummary });
       sendAgentDone(tabId, actionHistory);
       return;
     }
