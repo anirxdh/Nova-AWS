@@ -8,11 +8,11 @@ import time
 import httpx
 from PIL import Image
 
-GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
-GROQ_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
+ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
+CLAUDE_MODEL = "claude-sonnet-4-20250514"
 
 # Max chars for DOM snapshot JSON to stay under token limits
-DOM_SNAPSHOT_MAX_CHARS = 12000
+DOM_SNAPSHOT_MAX_CHARS = 30000
 
 
 def _extract_json(text: str) -> dict | list | None:
@@ -88,10 +88,10 @@ def _compress_screenshot(screenshot_base64: str, max_width: int = 1024) -> str:
         return screenshot_base64
 
 
-def _get_groq_key() -> str:
-    key = os.getenv("GROQ_API_KEY", "")
+def _get_anthropic_key() -> str:
+    key = os.getenv("ANTHROPIC_API_KEY", "")
     if not key:
-        raise ValueError("GROQ_API_KEY not set in backend/.env")
+        raise ValueError("ANTHROPIC_API_KEY not set in backend/.env")
     return key
 
 
@@ -227,47 +227,59 @@ CRITICAL RULES:
 IMPORTANT: Always look at the DOM snapshot FIRST to find the right selector. The screenshot helps you understand what the user sees, but the DOM snapshot has the actual selectors you must use."""
 
 
-def _call_groq(system_prompt: str, user_content: list[dict]) -> str:
-    """Call Groq chat completions API with vision support. Retries on rate limit."""
-    api_key = _get_groq_key()
+def _call_claude(system_prompt: str, user_content: list[dict]) -> str:
+    """Call Anthropic Messages API with vision support."""
+    api_key = _get_anthropic_key()
 
-    messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": user_content},
-    ]
+    # Convert OpenAI-style content to Anthropic format
+    anthropic_content = []
+    for block in user_content:
+        if block.get("type") == "image_url":
+            url = block["image_url"]["url"]
+            # Extract base64 and media type from data URI
+            if url.startswith("data:"):
+                header, b64data = url.split(",", 1)
+                media_type = header.split(":")[1].split(";")[0]
+            else:
+                media_type = "image/jpeg"
+                b64data = url
+            anthropic_content.append({
+                "type": "image",
+                "source": {
+                    "type": "base64",
+                    "media_type": media_type,
+                    "data": b64data,
+                },
+            })
+        elif block.get("type") == "text":
+            anthropic_content.append({
+                "type": "text",
+                "text": block["text"],
+            })
 
-    payload = {
-        "model": GROQ_MODEL,
-        "messages": messages,
-        "max_tokens": 2048,
-        "temperature": 0.3,
-    }
+    resp = httpx.post(
+        ANTHROPIC_API_URL,
+        headers={
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+        },
+        json={
+            "model": CLAUDE_MODEL,
+            "max_tokens": 2048,
+            "system": system_prompt,
+            "messages": [{"role": "user", "content": anthropic_content}],
+        },
+        timeout=60.0,
+    )
 
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-    }
+    if resp.status_code == 401:
+        raise ValueError("Anthropic API key is invalid — check ANTHROPIC_API_KEY in backend/.env")
+    if resp.status_code != 200:
+        raise ValueError(f"Claude API error ({resp.status_code}): {resp.text[:500]}")
 
-    for attempt in range(3):
-        resp = httpx.post(GROQ_API_URL, headers=headers, json=payload, timeout=60.0)
-
-        if resp.status_code == 401:
-            raise ValueError("Groq API key is invalid — check GROQ_API_KEY in backend/.env")
-
-        if resp.status_code == 429:
-            # Rate limited — wait and retry
-            wait = 2.0 * (attempt + 1)
-            print(f"[ScreenSense] Groq rate limited, waiting {wait}s (attempt {attempt + 1}/3)")
-            time.sleep(wait)
-            continue
-
-        if resp.status_code != 200:
-            raise ValueError(f"Groq API error ({resp.status_code}): {resp.text[:500]}")
-
-        data = resp.json()
-        return data["choices"][0]["message"]["content"]
-
-    raise ValueError("Groq rate limit exceeded after 3 retries — wait a moment and try again")
+    data = resp.json()
+    return data["content"][0]["text"]
 
 
 def reason_about_page(command: str, screenshot_base64: str, dom_snapshot: dict) -> dict:
@@ -302,7 +314,7 @@ def reason_about_page(command: str, screenshot_base64: str, dom_snapshot: dict) 
     ]
 
     try:
-        response_text = _call_groq(SYSTEM_PROMPT, user_content)
+        response_text = _call_claude(SYSTEM_PROMPT, user_content)
 
         parsed = _extract_json(response_text)
         if parsed is not None:
@@ -366,7 +378,7 @@ def reason_continue(
     ]
 
     try:
-        response_text = _call_groq(CONTINUE_SYSTEM_PROMPT, user_content)
+        response_text = _call_claude(CONTINUE_SYSTEM_PROMPT, user_content)
 
         parsed = _extract_json(response_text)
         if parsed is not None:
