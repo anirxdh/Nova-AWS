@@ -2,8 +2,6 @@ import React, { useEffect, useState } from 'react';
 import {
   getSettings,
   saveSettings,
-  getApiKeys,
-  saveApiKeys,
 } from '../shared/storage';
 import { DEFAULT_SETTINGS } from '../shared/constants';
 import { ExtensionSettings, DisplayMode, ExplanationLevel } from '../shared/types';
@@ -45,15 +43,9 @@ const Settings: React.FC = () => {
   const [settings, setSettings] = useState<ExtensionSettings | null>(null);
   const [capturing, setCapturing] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [groqKey, setGroqKey] = useState('');
-  const [elevenLabsKey, setElevenLabsKey] = useState('');
 
   useEffect(() => {
     getSettings().then(setSettings);
-    getApiKeys().then((keys) => {
-      setGroqKey(keys.groqKey || '');
-      setElevenLabsKey(keys.elevenLabsKey || '');
-    });
   }, []);
 
   const handleKeyCapture = (e: React.KeyboardEvent) => {
@@ -68,7 +60,6 @@ const Settings: React.FC = () => {
   const handleSave = async () => {
     if (settings) {
       await saveSettings(settings);
-      await saveApiKeys({ groqKey: groqKey || undefined, elevenLabsKey: elevenLabsKey || undefined });
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     }
@@ -149,24 +140,6 @@ const Settings: React.FC = () => {
                 ))}
               </div>
               <p className="field-hint">Adjusts how detailed and technical the AI explanations are</p>
-            </div>
-
-            <div className="divider" />
-
-            <div className="field-group">
-              <label className="field-label">Groq API Key</label>
-              <input type="password" value={groqKey} onChange={(e) => setGroqKey(e.target.value)} placeholder="gsk_..." className="text-input" />
-              <p className="field-hint">Get your free key from{' '}
-                <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer" className="field-link">console.groq.com</a>
-                {' '}&middot; no credit card needed</p>
-            </div>
-
-            <div className="field-group">
-              <label className="field-label">ElevenLabs API Key</label>
-              <input type="password" value={elevenLabsKey} onChange={(e) => setElevenLabsKey(e.target.value)} placeholder="sk_..." className="text-input" />
-              <p className="field-hint">For voice readback &middot;{' '}
-                <a href="https://elevenlabs.io/app/settings/api-keys" target="_blank" rel="noopener noreferrer" className="field-link">elevenlabs.io</a>
-                {' '}&middot; optional (falls back to browser voice)</p>
             </div>
 
             <div className="actions">
