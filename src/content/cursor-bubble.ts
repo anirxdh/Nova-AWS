@@ -124,24 +124,95 @@ const BUBBLE_STYLES = `
 }
 
 /* ─── Executing step indicator ─── */
-.screensense-step {
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.82);
+/* ─── Chat-style step log ─── */
+.screensense-step-log {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 280px;
+  overflow-y: auto;
+  padding-right: 4px;
 }
 
-.screensense-step-count {
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.35);
-  margin-bottom: 3px;
-  font-weight: 500;
+.screensense-step-log::-webkit-scrollbar { width: 3px; }
+.screensense-step-log::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 2px; }
+
+.screensense-step-entry {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 1.4;
+  padding: 4px 0;
 }
 
-.screensense-step-name {
-  font-weight: 500;
+.screensense-step-icon {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  border-radius: 50%;
+  margin-top: 1px;
+}
+
+.screensense-step-icon.done {
+  background: rgba(48, 209, 88, 0.15);
+  color: rgba(48, 209, 88, 0.9);
+}
+
+.screensense-step-icon.active {
+  background: rgba(255, 153, 0, 0.15);
+  color: rgba(255, 153, 0, 0.9);
+  animation: step-spin 1s linear infinite;
+}
+
+.screensense-step-icon.failed {
+  background: rgba(255, 69, 58, 0.15);
+  color: rgba(255, 69, 58, 0.9);
+}
+
+.screensense-step-icon.thinking {
+  background: rgba(10, 132, 255, 0.15);
+  color: rgba(10, 132, 255, 0.9);
+  animation: step-spin 1.5s linear infinite;
+}
+
+@keyframes step-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.screensense-step-text {
+  color: rgba(255, 255, 255, 0.7);
+  word-break: break-word;
+}
+
+.screensense-step-text.result {
   color: rgba(255, 255, 255, 0.9);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-weight: 500;
+}
+
+.screensense-step-text.failed {
+  color: rgba(255, 69, 58, 0.8);
+}
+
+.screensense-step-text.thinking {
+  color: rgba(10, 132, 255, 0.7);
+  font-style: italic;
+}
+
+/* Expanded bubble for executing/understanding with chat log */
+.screensense-bubble.state-executing,
+.screensense-bubble.state-understanding {
+  width: 320px;
+  max-height: 400px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  overflow-y: auto;
+  pointer-events: auto;
 }
 
 /* Pulsing border during active execution */
@@ -718,9 +789,17 @@ export class CursorBubble {
     }
 
     // Re-render content area for the new state
-    // Preserve history, transcript, followup for 'answering' state
     if (state === 'answering') {
       this.renderAnsweringState();
+    } else if (state === 'understanding' && this.stepLogEl && this.bubbleEl?.contains(this.stepLogEl)) {
+      // Preserve step log during re-evaluation — just add a "thinking" entry
+      this.completeLastStep();
+      this.addStepEntry(label || 'Re-evaluating...', 'thinking');
+    } else if (state === 'executing' && this.stepLogEl && this.bubbleEl?.contains(this.stepLogEl)) {
+      // Preserve step log when transitioning back to executing
+      // Remove the last "thinking" entry if present
+      const lastThinking = this.stepLogEl.querySelector('.screensense-step-icon.thinking');
+      if (lastThinking) lastThinking.parentElement?.remove();
     } else {
       this.clearContentArea();
       this.renderState(state, label);
@@ -769,14 +848,28 @@ export class CursorBubble {
       this.setState('executing');
     }
 
-    const countEl = this.bubbleEl.querySelector('.screensense-step-count');
-    const nameEl = this.bubbleEl.querySelector('.screensense-step-name');
-    if (countEl) countEl.textContent = total > 0 ? `Step ${index}/${total}` : `Step ${index}`;
-    if (nameEl) nameEl.textContent = name;
+    // Determine if this is a result (action completed) or intent (about to do)
+    const isResult = /^(Clicked|Typed|Navigat|Scrolled|Extracted)/.test(name);
+    const isFailed = /^Failed:/.test(name);
+    const isRetrying = /^Retrying:/.test(name);
 
-    // Track completed action results for done summary (skip intent descriptions)
-    if (/^(Clicked|Typed|Navigat|Scrolled|Extracted)/.test(name)) {
+    if (isResult) {
+      // Complete the previous "active" step and add result
+      this.completeLastStep();
       this.addCompletedStep(name);
+    } else if (isFailed) {
+      // Mark previous as failed, add failure entry
+      const lastActive = this.stepLogEl?.querySelector('.screensense-step-icon.active');
+      if (lastActive) {
+        lastActive.classList.remove('active');
+        lastActive.classList.add('failed');
+        lastActive.textContent = '\u2717';
+      }
+      this.addStepEntry(name, 'failed');
+    } else if (!isRetrying) {
+      // New action intent — add as active
+      this.completeLastStep(); // complete any prior active step
+      this.addStepEntry(name, 'active');
     }
   }
 
@@ -1022,19 +1115,10 @@ export class CursorBubble {
   showReasoning(text: string): void {
     if (!this.bubbleEl) return;
 
-    // Remove any existing reasoning element
-    const existing = this.bubbleEl.querySelector('.screensense-reasoning');
-    if (existing) existing.remove();
-
-    const reasoningEl = document.createElement('div');
-    reasoningEl.className = 'screensense-reasoning';
-    reasoningEl.textContent = text;
-
-    // Insert at the beginning of the bubble content
-    if (this.bubbleEl.firstChild) {
-      this.bubbleEl.insertBefore(reasoningEl, this.bubbleEl.firstChild);
-    } else {
-      this.bubbleEl.appendChild(reasoningEl);
+    // Add reasoning as a "thinking" entry in the step log
+    if (this.stepLogEl) {
+      this.completeLastStep();
+      this.addStepEntry(text, 'thinking');
     }
   }
 
@@ -1108,26 +1192,57 @@ export class CursorBubble {
     this.bubbleEl.appendChild(statusEl);
   }
 
+  private stepLogEl: HTMLDivElement | null = null;
+
   private renderExecuting(label?: string): void {
     if (!this.bubbleEl) return;
 
-    // Show task banner if we have a task
+    // Show task banner (user's question)
     this.ensureTaskBanner();
 
-    const stepEl = document.createElement('div');
-    stepEl.className = 'screensense-step';
+    // Create or reuse the step log container
+    if (!this.stepLogEl || !this.bubbleEl.contains(this.stepLogEl)) {
+      this.stepLogEl = document.createElement('div');
+      this.stepLogEl.className = 'screensense-step-log';
+      this.bubbleEl.appendChild(this.stepLogEl);
+    }
+  }
 
-    const countEl = document.createElement('div');
-    countEl.className = 'screensense-step-count';
-    countEl.textContent = label ? '' : 'Executing...';
+  /** Add an entry to the chat-style step log */
+  private addStepEntry(text: string, type: 'active' | 'done' | 'failed' | 'thinking'): void {
+    if (!this.stepLogEl) return;
 
-    const nameEl = document.createElement('div');
-    nameEl.className = 'screensense-step-name';
-    nameEl.textContent = label ?? '';
+    const entry = document.createElement('div');
+    entry.className = 'screensense-step-entry';
 
-    stepEl.appendChild(countEl);
-    stepEl.appendChild(nameEl);
-    this.bubbleEl.appendChild(stepEl);
+    const icon = document.createElement('div');
+    icon.className = `screensense-step-icon ${type}`;
+    if (type === 'done') icon.textContent = '\u2713';
+    else if (type === 'failed') icon.textContent = '\u2717';
+    else if (type === 'active') icon.textContent = '\u25CB';
+    else icon.textContent = '\u25CB'; // thinking
+
+    const textEl = document.createElement('span');
+    textEl.className = `screensense-step-text ${type === 'done' ? 'result' : type === 'failed' ? 'failed' : type === 'thinking' ? 'thinking' : ''}`;
+    textEl.textContent = text;
+
+    entry.appendChild(icon);
+    entry.appendChild(textEl);
+    this.stepLogEl.appendChild(entry);
+
+    // Auto-scroll to bottom
+    this.stepLogEl.scrollTop = this.stepLogEl.scrollHeight;
+  }
+
+  /** Mark the last active step as done */
+  private completeLastStep(): void {
+    if (!this.stepLogEl) return;
+    const lastActive = this.stepLogEl.querySelector('.screensense-step-icon.active');
+    if (lastActive) {
+      lastActive.classList.remove('active');
+      lastActive.classList.add('done');
+      lastActive.textContent = '\u2713';
+    }
   }
 
   private renderError(error: string): void {
@@ -1340,6 +1455,7 @@ export class CursorBubble {
     this.ttsBtn = null;
     this.dragHandle = null;
     this.taskBannerEl = null;
+    this.stepLogEl = null;
   }
 
   private ensureTaskBanner(): void {
