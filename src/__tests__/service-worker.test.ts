@@ -136,6 +136,47 @@ function sendMessageToSW(
   });
 }
 
+/**
+ * Helper to set up standard mockTabsSendMessage for agent loop tests.
+ * Returns a mock implementation that handles scrape-dom, execute-action,
+ * and wait-for-dom-stable messages.
+ *
+ * IMPORTANT: scrape-dom must return buttons/inputs/links > 0 to satisfy
+ * waitForDomContent() and avoid 8-second timeout loops.
+ */
+function setupAgentLoopMocks(executeResult = { ok: true, summary: "Clicked 'Button'" }) {
+  const meaningfulSnapshot = {
+    url: 'https://example.com',
+    buttons: [{ selector: '#btn', text: 'OK' }],
+    inputs: [{ selector: '#input', type: 'text' }],
+    links: [],
+  };
+  mockTabsSendMessage.mockImplementation((_tabId: number, msg: any) => {
+    if (msg.action === 'execute-action') {
+      return Promise.resolve(executeResult);
+    }
+    if (msg.action === 'scrape-dom') {
+      return Promise.resolve({ ok: true, snapshot: meaningfulSnapshot });
+    }
+    if (msg.action === 'wait-for-dom-stable') {
+      return Promise.resolve({ stable: true });
+    }
+    return Promise.resolve(undefined);
+  });
+}
+
+/**
+ * Run a follow-up and wait for the async pipeline to complete.
+ * Ensures pipelineRunning resets before next test.
+ */
+async function runFollowUpAndWait(tabId: number, text: string, waitMs = 1500): Promise<void> {
+  await sendMessageToSW(
+    { action: 'follow-up', text },
+    { tab: { id: tabId } as chrome.tabs.Tab }
+  );
+  await new Promise(r => setTimeout(r, waitMs));
+}
+
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 describe('Service Worker', () => {
@@ -382,13 +423,7 @@ describe('Service Worker', () => {
         reasoning: 'Found price element',
       });
 
-      await sendMessageToSW(
-        { action: 'follow-up', text: 'what is the price?' },
-        { tab: { id: 31 } as chrome.tabs.Tab }
-      );
-
-      // Wait for async pipeline to run
-      await new Promise(r => setTimeout(r, 200));
+      await runFollowUpAndWait(31, 'what is the price?');
 
       expect(sendTask).toHaveBeenCalled();
       // Should send bubble-answer-chunk to the tab
@@ -405,12 +440,7 @@ describe('Service Worker', () => {
         reasoning: 'This is the reasoning',
       });
 
-      await sendMessageToSW(
-        { action: 'follow-up', text: 'question' },
-        { tab: { id: 33 } as chrome.tabs.Tab }
-      );
-
-      await new Promise(r => setTimeout(r, 200));
+      await runFollowUpAndWait(33, 'question');
 
       expect(mockTabsSendMessage).toHaveBeenCalledWith(
         33,
@@ -427,12 +457,7 @@ describe('Service Worker', () => {
         text: 'The price is $29.99. It was recently reduced from $39.99.',
       });
 
-      await sendMessageToSW(
-        { action: 'follow-up', text: 'price?' },
-        { tab: { id: 34 } as chrome.tabs.Tab }
-      );
-
-      await new Promise(r => setTimeout(r, 200));
+      await runFollowUpAndWait(34, 'price?');
 
       expect(mockTabsSendMessage).toHaveBeenCalledWith(
         34,
@@ -442,6 +467,47 @@ describe('Service Worker', () => {
         })
       );
     });
+  });
+
+  // ── Pipeline mutex ────────────────────────────────────────────────────
+
+  describe('pipeline mutex', () => {
+    it('blocks concurrent calls with pipelineRunning flag', async () => {
+      // Make the first follow-up take a long time
+      (sendTask as jest.Mock).mockImplementation(() =>
+        new Promise(resolve => setTimeout(() => resolve({ type: 'answer', text: 'slow' }), 2000))
+      );
+
+      // Start first follow-up (don't await)
+      sendMessageToSW(
+        { action: 'follow-up', text: 'first' },
+        { tab: { id: 100 } as chrome.tabs.Tab }
+      );
+
+      // Wait a bit for the pipeline to start
+      await new Promise(r => setTimeout(r, 100));
+
+      // Try a second follow-up while first is running
+      await sendMessageToSW(
+        { action: 'follow-up', text: 'second' },
+        { tab: { id: 101 } as chrome.tabs.Tab }
+      );
+
+      // Wait for it
+      await new Promise(r => setTimeout(r, 100));
+
+      // The second call should have received the "Please wait" error
+      expect(mockTabsSendMessage).toHaveBeenCalledWith(
+        101,
+        expect.objectContaining({
+          action: 'pipeline-error',
+          error: expect.stringContaining('Please wait'),
+        })
+      );
+
+      // Wait for first pipeline to finish
+      await new Promise(r => setTimeout(r, 2500));
+    }, 10000);
   });
 
   // ── Agent loop via follow-up triggering steps ──────────────────────────
@@ -457,40 +523,24 @@ describe('Service Worker', () => {
       (sendTask as jest.Mock).mockResolvedValue(stepsResponse);
       (sendTaskContinue as jest.Mock).mockResolvedValue({ type: 'done' });
 
-      mockTabsSendMessage.mockImplementation((_tabId: number, msg: any) => {
-        if (msg.action === 'execute-action') {
-          return Promise.resolve({ ok: true, summary: "Clicked 'Add to Cart'" });
-        }
-        if (msg.action === 'scrape-dom') {
-          return Promise.resolve({ ok: true, snapshot: { url: 'https://example.com' } });
-        }
-        if (msg.action === 'wait-for-dom-stable') {
-          return Promise.resolve({ stable: true });
-        }
-        return Promise.resolve(undefined);
-      });
+      setupAgentLoopMocks({ ok: true, summary: "Clicked 'Add to Cart'" });
 
-      await sendMessageToSW(
-        { action: 'follow-up', text: 'add item to cart' },
-        { tab: { id: 30 } as chrome.tabs.Tab }
-      );
-
-      // Wait for async pipeline to complete
-      await new Promise(r => setTimeout(r, 500));
+      await runFollowUpAndWait(30, 'add item to cart', 3000);
 
       // sendTask should have been called
       expect(sendTask).toHaveBeenCalled();
       // sendTaskContinue should have been called (re-observation)
       expect(sendTaskContinue).toHaveBeenCalled();
-    });
+    }, 10000);
 
-    it('stops on action failure', async () => {
+    it('records failure in history and re-observes on action failure', async () => {
       (sendTask as jest.Mock).mockResolvedValue({
         type: 'steps',
         actions: [
           { action: 'click', selector: '#nonexistent', description: 'Click missing element' },
         ],
       });
+      (sendTaskContinue as jest.Mock).mockResolvedValue({ type: 'done' });
 
       mockTabsSendMessage.mockImplementation((_tabId: number, msg: any) => {
         if (msg.action === 'execute-action') {
@@ -499,25 +549,21 @@ describe('Service Worker', () => {
         if (msg.action === 'wait-for-dom-stable') {
           return Promise.resolve({ stable: true });
         }
+        if (msg.action === 'scrape-dom') {
+          return Promise.resolve({ ok: true, snapshot: { url: 'https://example.com', buttons: [{ selector: '#x', text: 'X' }], inputs: [], links: [] } });
+        }
         return Promise.resolve(undefined);
       });
 
-      await sendMessageToSW(
-        { action: 'follow-up', text: 'click something' },
-        { tab: { id: 35 } as chrome.tabs.Tab }
-      );
+      await runFollowUpAndWait(35, 'click something', 3000);
 
-      await new Promise(r => setTimeout(r, 300));
-
-      // Should send pipeline-error
-      expect(mockTabsSendMessage).toHaveBeenCalledWith(
-        35,
-        expect.objectContaining({
-          action: 'pipeline-error',
-          error: expect.stringContaining('Element not found'),
-        })
-      );
-    });
+      // Should have called sendTaskContinue with the failure in history
+      expect(sendTaskContinue).toHaveBeenCalled();
+      const continueArgs = (sendTaskContinue as jest.Mock).mock.calls[0];
+      const history = continueArgs[1]; // actionHistory
+      expect(history.length).toBe(1);
+      expect(history[0].result).toContain('FAILED');
+    }, 10000);
 
     it('sends bubble-state executing when starting steps', async () => {
       (sendTask as jest.Mock).mockResolvedValue({
@@ -528,25 +574,9 @@ describe('Service Worker', () => {
       });
       (sendTaskContinue as jest.Mock).mockResolvedValue({ type: 'done' });
 
-      mockTabsSendMessage.mockImplementation((_tabId: number, msg: any) => {
-        if (msg.action === 'execute-action') {
-          return Promise.resolve({ ok: true, summary: "Clicked" });
-        }
-        if (msg.action === 'wait-for-dom-stable') {
-          return Promise.resolve({ stable: true });
-        }
-        if (msg.action === 'scrape-dom') {
-          return Promise.resolve({ ok: true, snapshot: {} });
-        }
-        return Promise.resolve(undefined);
-      });
+      setupAgentLoopMocks();
 
-      await sendMessageToSW(
-        { action: 'follow-up', text: 'click' },
-        { tab: { id: 36 } as chrome.tabs.Tab }
-      );
-
-      await new Promise(r => setTimeout(r, 300));
+      await runFollowUpAndWait(36, 'click', 3000);
 
       expect(mockTabsSendMessage).toHaveBeenCalledWith(
         36,
@@ -555,7 +585,7 @@ describe('Service Worker', () => {
           state: 'executing',
         })
       );
-    });
+    }, 10000);
 
     it('sends bubble-step with action description', async () => {
       (sendTask as jest.Mock).mockResolvedValue({
@@ -566,25 +596,9 @@ describe('Service Worker', () => {
       });
       (sendTaskContinue as jest.Mock).mockResolvedValue({ type: 'done' });
 
-      mockTabsSendMessage.mockImplementation((_tabId: number, msg: any) => {
-        if (msg.action === 'execute-action') {
-          return Promise.resolve({ ok: true, summary: "Clicked 'Button'" });
-        }
-        if (msg.action === 'wait-for-dom-stable') {
-          return Promise.resolve({ stable: true });
-        }
-        if (msg.action === 'scrape-dom') {
-          return Promise.resolve({ ok: true, snapshot: {} });
-        }
-        return Promise.resolve(undefined);
-      });
+      setupAgentLoopMocks();
 
-      await sendMessageToSW(
-        { action: 'follow-up', text: 'click' },
-        { tab: { id: 37 } as chrome.tabs.Tab }
-      );
-
-      await new Promise(r => setTimeout(r, 300));
+      await runFollowUpAndWait(37, 'click', 3000);
 
       expect(mockTabsSendMessage).toHaveBeenCalledWith(
         37,
@@ -593,7 +607,156 @@ describe('Service Worker', () => {
           stepName: 'Click the button',
         })
       );
-    });
+    }, 10000);
+
+    it('executes single action per iteration (not batch)', async () => {
+      (sendTask as jest.Mock).mockResolvedValue({
+        type: 'steps',
+        actions: [
+          { action: 'click', selector: '#btn1', description: 'First' },
+          { action: 'click', selector: '#btn2', description: 'Second' },
+        ],
+      });
+      // After first action, done
+      (sendTaskContinue as jest.Mock).mockResolvedValue({ type: 'done' });
+
+      setupAgentLoopMocks();
+
+      await runFollowUpAndWait(38, 'click buttons', 3000);
+
+      // execute-action should have been called only ONCE (single action per iteration)
+      const executeCalls = mockTabsSendMessage.mock.calls.filter(
+        (c: any[]) => c[1]?.action === 'execute-action'
+      );
+      expect(executeCalls.length).toBe(1);
+      // It should be the FIRST action
+      expect(executeCalls[0][1].description).toBe('First');
+    }, 10000);
+  });
+
+  // ── sendAgentDone sends TTS summary ───────────────────────────────────
+
+  describe('sendAgentDone TTS', () => {
+    it('sends tts-summary with "All done" when task completes', async () => {
+      (sendTask as jest.Mock).mockResolvedValue({
+        type: 'steps',
+        actions: [
+          { action: 'click', selector: '#btn', description: 'Click button' },
+        ],
+      });
+      (sendTaskContinue as jest.Mock).mockResolvedValue({ type: 'done' });
+
+      setupAgentLoopMocks();
+
+      await runFollowUpAndWait(39, 'do stuff', 3000);
+
+      expect(mockTabsSendMessage).toHaveBeenCalledWith(
+        39,
+        expect.objectContaining({
+          action: 'tts-summary',
+          summary: 'All done.',
+        })
+      );
+    }, 10000);
+  });
+
+  // ── shortSpeak patterns ───────────────────────────────────────────────
+
+  describe('shortSpeak patterns (via agent loop TTS)', () => {
+    it('speaks "Clicking X" for generic click actions', async () => {
+      (sendTask as jest.Mock).mockResolvedValue({
+        type: 'steps',
+        actions: [
+          { action: 'click', selector: '#details-btn', description: 'Click details' },
+        ],
+      });
+      (sendTaskContinue as jest.Mock).mockResolvedValue({ type: 'done' });
+
+      setupAgentLoopMocks({ ok: true, summary: "Clicked 'View Details'" });
+
+      await runFollowUpAndWait(41, 'view details', 3000);
+
+      const ttsCalls = mockTabsSendMessage.mock.calls.filter(
+        (c: any[]) => c[1]?.action === 'tts-summary' && typeof c[1]?.summary === 'string' && c[1]?.summary.startsWith('Clicking')
+      );
+      expect(ttsCalls.length).toBeGreaterThanOrEqual(1);
+    }, 10000);
+
+    it('speaks "Scrolling" for scroll actions', async () => {
+      (sendTask as jest.Mock).mockResolvedValue({
+        type: 'steps',
+        actions: [
+          { action: 'scroll', direction: 'down', description: 'Scroll down' },
+        ],
+      });
+      (sendTaskContinue as jest.Mock).mockResolvedValue({ type: 'done' });
+
+      setupAgentLoopMocks({ ok: true, summary: 'Scrolled down one screen' });
+
+      await runFollowUpAndWait(42, 'scroll down', 3000);
+
+      const ttsCalls = mockTabsSendMessage.mock.calls.filter(
+        (c: any[]) => c[1]?.action === 'tts-summary' && c[1]?.summary === 'Scrolling'
+      );
+      expect(ttsCalls.length).toBeGreaterThanOrEqual(1);
+    }, 10000);
+
+    it('speaks "Added to cart" for add-to-cart clicks', async () => {
+      (sendTask as jest.Mock).mockResolvedValue({
+        type: 'steps',
+        actions: [
+          { action: 'click', selector: '#add-to-cart', description: 'Add to cart' },
+        ],
+      });
+      (sendTaskContinue as jest.Mock).mockResolvedValue({ type: 'done' });
+
+      setupAgentLoopMocks({ ok: true, summary: "Clicked '#add-to-cart-button'" });
+
+      await runFollowUpAndWait(43, 'add to cart', 3000);
+
+      const ttsCalls = mockTabsSendMessage.mock.calls.filter(
+        (c: any[]) => c[1]?.action === 'tts-summary' && c[1]?.summary === 'Added to cart'
+      );
+      expect(ttsCalls.length).toBeGreaterThanOrEqual(1);
+    }, 10000);
+
+    it('speaks "Searching X" for type actions', async () => {
+      (sendTask as jest.Mock).mockResolvedValue({
+        type: 'steps',
+        actions: [
+          { action: 'type', selector: '#search', value: 'headphones', description: 'Type headphones' },
+        ],
+      });
+      (sendTaskContinue as jest.Mock).mockResolvedValue({ type: 'done' });
+
+      setupAgentLoopMocks({ ok: true, summary: "Typed 'headphones' into #search" });
+
+      await runFollowUpAndWait(44, 'search headphones', 3000);
+
+      const ttsCalls = mockTabsSendMessage.mock.calls.filter(
+        (c: any[]) => c[1]?.action === 'tts-summary' && c[1]?.summary?.startsWith('Searching')
+      );
+      expect(ttsCalls.length).toBeGreaterThanOrEqual(1);
+    }, 10000);
+
+    it('uses Nova speak field when available', async () => {
+      (sendTask as jest.Mock).mockResolvedValue({
+        type: 'steps',
+        actions: [
+          { action: 'click', selector: '#btn', description: 'Click button', speak: 'Clicking checkout' },
+        ],
+      });
+      (sendTaskContinue as jest.Mock).mockResolvedValue({ type: 'done' });
+
+      setupAgentLoopMocks();
+
+      await runFollowUpAndWait(45, 'click checkout', 3000);
+
+      const ttsCalls = mockTabsSendMessage.mock.calls.filter(
+        (c: any[]) => c[1]?.action === 'tts-summary' && c[1]?.summary === 'Clicking checkout'
+      );
+      expect(ttsCalls.length).toBeGreaterThanOrEqual(1);
+    }, 10000);
   });
 
   // ── waitForDomStable ───────────────────────────────────────────────────
@@ -606,31 +769,15 @@ describe('Service Worker', () => {
       });
       (sendTaskContinue as jest.Mock).mockResolvedValue({ type: 'done' });
 
-      mockTabsSendMessage.mockImplementation((_tabId: number, msg: any) => {
-        if (msg.action === 'execute-action') {
-          return Promise.resolve({ ok: true, summary: "Clicked" });
-        }
-        if (msg.action === 'wait-for-dom-stable') {
-          return Promise.resolve({ stable: true });
-        }
-        if (msg.action === 'scrape-dom') {
-          return Promise.resolve({ ok: true, snapshot: {} });
-        }
-        return Promise.resolve(undefined);
-      });
+      setupAgentLoopMocks();
 
-      await sendMessageToSW(
-        { action: 'follow-up', text: 'click it' },
-        { tab: { id: 40 } as chrome.tabs.Tab }
-      );
-
-      await new Promise(r => setTimeout(r, 500));
+      await runFollowUpAndWait(40, 'click it', 3000);
 
       const waitCalls = mockTabsSendMessage.mock.calls.filter(
         (call: any[]) => call[1]?.action === 'wait-for-dom-stable'
       );
       expect(waitCalls.length).toBeGreaterThan(0);
-    });
+    }, 10000);
   });
 
   // ── Navigation handling ────────────────────────────────────────────────
@@ -654,7 +801,7 @@ describe('Service Worker', () => {
         }
         if (msg.action === 'scrape-dom') {
           // Content script has reconnected
-          return Promise.resolve({ ok: true, snapshot: { url: 'https://example.com/page2' } });
+          return Promise.resolve({ ok: true, snapshot: { url: 'https://example.com/page2', buttons: [{ selector: '#x', text: 'X' }], inputs: [], links: [] } });
         }
         if (msg.action === 'wait-for-dom-stable') {
           return Promise.resolve({ stable: true });
@@ -662,20 +809,14 @@ describe('Service Worker', () => {
         return Promise.resolve(undefined);
       });
 
-      await sendMessageToSW(
-        { action: 'follow-up', text: 'go to page 2' },
-        { tab: { id: 50 } as chrome.tabs.Tab }
-      );
-
-      // Navigation reconnection takes ~2s + processing
-      await new Promise(r => setTimeout(r, 3500));
+      await runFollowUpAndWait(50, 'go to page 2', 5000);
 
       // Should have attempted scrape-dom after navigation
       const scrapeCalls = mockTabsSendMessage.mock.calls.filter(
         (call: any[]) => call[1]?.action === 'scrape-dom'
       );
       expect(scrapeCalls.length).toBeGreaterThan(0);
-    }, 10000);
+    }, 15000);
   });
 
   // ── Conversation history ───────────────────────────────────────────────
@@ -688,13 +829,7 @@ describe('Service Worker', () => {
       });
 
       const tabId = 60;
-
-      await sendMessageToSW(
-        { action: 'follow-up', text: 'first question' },
-        { tab: { id: tabId } as chrome.tabs.Tab }
-      );
-
-      await new Promise(r => setTimeout(r, 300));
+      await runFollowUpAndWait(tabId, 'first question');
 
       // Check conversation info
       const infoResponse = await sendMessageToSW(
@@ -715,12 +850,7 @@ describe('Service Worker', () => {
       const tabId = 61;
 
       // Add a conversation turn
-      await sendMessageToSW(
-        { action: 'follow-up', text: 'question' },
-        { tab: { id: tabId } as chrome.tabs.Tab }
-      );
-
-      await new Promise(r => setTimeout(r, 300));
+      await runFollowUpAndWait(tabId, 'question');
 
       // Clear it
       await sendMessageToSW(
@@ -746,27 +876,10 @@ describe('Service Worker', () => {
       });
       (sendTaskContinue as jest.Mock).mockResolvedValue({ type: 'done' });
 
-      mockTabsSendMessage.mockImplementation((_tabId: number, msg: any) => {
-        if (msg.action === 'execute-action') {
-          return Promise.resolve({ ok: true, summary: "Clicked" });
-        }
-        if (msg.action === 'wait-for-dom-stable') {
-          return Promise.resolve({ stable: true });
-        }
-        if (msg.action === 'scrape-dom') {
-          return Promise.resolve({ ok: true, snapshot: {} });
-        }
-        return Promise.resolve(undefined);
-      });
+      setupAgentLoopMocks();
 
       const tabId = 62;
-
-      await sendMessageToSW(
-        { action: 'follow-up', text: 'click the button' },
-        { tab: { id: tabId } as chrome.tabs.Tab }
-      );
-
-      await new Promise(r => setTimeout(r, 500));
+      await runFollowUpAndWait(tabId, 'click the button', 3000);
 
       const infoResponse = await sendMessageToSW(
         { action: 'get-conversation-info' },
@@ -775,7 +888,7 @@ describe('Service Worker', () => {
 
       // Steps also count as a conversation turn
       expect(infoResponse.info.turns).toBe(1);
-    });
+    }, 10000);
   });
 
   // ── Lifecycle: onInstalled ─────────────────────────────────────────────
@@ -810,12 +923,7 @@ describe('Service Worker', () => {
       });
 
       // Add conversation
-      await sendMessageToSW(
-        { action: 'follow-up', text: 'q' },
-        { tab: { id: tabId } as chrome.tabs.Tab }
-      );
-
-      await new Promise(r => setTimeout(r, 300));
+      await runFollowUpAndWait(tabId, 'q');
 
       // Verify conversation exists
       let info = await sendMessageToSW(
@@ -837,10 +945,51 @@ describe('Service Worker', () => {
     });
   });
 
+  // ── Agent loop cancel after sendTaskContinue ──────────────────────────
+
+  describe('agent loop cancellation', () => {
+    it('cancels after sendTaskContinue returns', async () => {
+      (sendTask as jest.Mock).mockResolvedValue({
+        type: 'steps',
+        actions: [{ action: 'click', selector: '#btn', description: 'Click' }],
+      });
+
+      // sendTaskContinue returns more steps (never done) — but we'll cancel first
+      let continueCallCount = 0;
+      (sendTaskContinue as jest.Mock).mockImplementation(() => {
+        continueCallCount++;
+        if (continueCallCount === 1) {
+          // During the first re-observation, trigger cancel
+          return new Promise(resolve => {
+            setTimeout(() => {
+              // Send cancel message
+              sendMessageToSW({ action: 'cancel-agent-loop' });
+              resolve({
+                type: 'steps',
+                actions: [{ action: 'click', selector: '#btn2', description: 'Click 2' }],
+              });
+            }, 100);
+          });
+        }
+        return Promise.resolve({ type: 'done' });
+      });
+
+      setupAgentLoopMocks();
+
+      await runFollowUpAndWait(81, 'keep clicking', 5000);
+
+      // Should have sent bubble-state done with "Cancelled" label
+      const doneCalls = mockTabsSendMessage.mock.calls.filter(
+        (c: any[]) => c[1]?.action === 'bubble-state' && c[1]?.state === 'done' && c[1]?.label === 'Cancelled'
+      );
+      expect(doneCalls.length).toBeGreaterThanOrEqual(1);
+    }, 15000);
+  });
+
   // ── MAX_AGENT_ITERATIONS ───────────────────────────────────────────────
 
   describe('MAX_AGENT_ITERATIONS limit', () => {
-    it('stops after 10 iterations when Nova keeps returning steps', async () => {
+    it('stops after maximum iterations when Nova keeps returning steps', async () => {
       (sendTask as jest.Mock).mockResolvedValue({
         type: 'steps',
         actions: [{ action: 'click', selector: '#btn', description: 'Click' }],
@@ -851,26 +1000,9 @@ describe('Service Worker', () => {
         actions: [{ action: 'click', selector: '#btn2', description: 'Click again' }],
       });
 
-      mockTabsSendMessage.mockImplementation((_tabId: number, msg: any) => {
-        if (msg.action === 'execute-action') {
-          return Promise.resolve({ ok: true, summary: "Clicked" });
-        }
-        if (msg.action === 'wait-for-dom-stable') {
-          return Promise.resolve({ stable: true });
-        }
-        if (msg.action === 'scrape-dom') {
-          return Promise.resolve({ ok: true, snapshot: {} });
-        }
-        return Promise.resolve(undefined);
-      });
+      setupAgentLoopMocks();
 
-      await sendMessageToSW(
-        { action: 'follow-up', text: 'keep clicking' },
-        { tab: { id: 80 } as chrome.tabs.Tab }
-      );
-
-      // Wait long enough for all iterations (each has delays)
-      await new Promise(r => setTimeout(r, 5000));
+      await runFollowUpAndWait(80, 'keep clicking', 8000);
 
       // Should eventually reach max iterations and send done
       expect(mockTabsSendMessage).toHaveBeenCalledWith(
@@ -881,9 +1013,10 @@ describe('Service Worker', () => {
         })
       );
 
-      // sendTaskContinue should have been called up to 10 times
+      // sendTaskContinue should have been called multiple times but capped at MAX_AGENT_ITERATIONS (25)
       const continueCallCount = (sendTaskContinue as jest.Mock).mock.calls.length;
-      expect(continueCallCount).toBeLessThanOrEqual(10);
-    }, 15000);
+      expect(continueCallCount).toBeLessThanOrEqual(25);
+      expect(continueCallCount).toBeGreaterThan(0);
+    }, 30000);
   });
 });

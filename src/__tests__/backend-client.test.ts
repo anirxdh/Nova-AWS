@@ -681,5 +681,24 @@ describe('Backend Client', () => {
       expect(result.type).toBe('done');
       expect(result.summary).toBe('All actions completed successfully');
     });
+
+    it('handles actions with speak field for TTS', async () => {
+      const response: TaskResponse = {
+        type: 'steps',
+        actions: [
+          { action: 'click', selector: '#cart', description: 'Add to cart', speak: 'Adding to cart' },
+          { action: 'navigate', url: 'https://amazon.com', description: 'Go to Amazon', speak: 'Opening Amazon' },
+        ],
+        reasoning: 'Multi-step plan with TTS hints',
+      };
+      mockFetchResponse(200, response);
+
+      const result = await sendTask('buy something', 'data:image/png;base64,x', {});
+
+      expect(result.type).toBe('steps');
+      expect(result.actions).toHaveLength(2);
+      expect(result.actions![0].speak).toBe('Adding to cart');
+      expect(result.actions![1].speak).toBe('Opening Amazon');
+    });
   });
 });

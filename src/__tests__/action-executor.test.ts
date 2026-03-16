@@ -5,11 +5,14 @@
  *   - All 5 action types (click, type, navigate, extract, scroll)
  *   - Allowlist validation (unknown action types rejected)
  *   - Selector sanitization (dangerous patterns blocked)
- *   - Rate limiting (MIN_ACTION_INTERVAL_MS enforced)
+ *   - Rate limiting (MIN_ACTION_INTERVAL_MS enforced, promise chain)
  *   - Element highlighting (highlightElement function)
  *   - Scroll-into-view retry when element not found initially
  *   - MouseEvent fallback when .click() fails
  *   - Error cases (element not found, invalid selector, missing required params)
+ *   - Auto-submit search boxes (input with role=searchbox, type=search, aria-label containing "search")
+ *   - React native value setter (HTMLInputElement.prototype.value)
+ *   - Scroll settle delay (600ms for direction-based scroll)
  */
 
 // ─── Mock DOM globals ────────────────────────────────────────────────────────
@@ -17,6 +20,9 @@
 const mockQuerySelector = jest.fn();
 const mockScrollBy = jest.fn();
 const mockScrollTo = jest.fn();
+
+// Create a mock native setter for HTMLInputElement.prototype.value
+const mockNativeSetter = jest.fn();
 
 Object.defineProperty(global, 'document', {
   value: {
@@ -32,8 +38,17 @@ Object.defineProperty(global, 'window', {
     scrollBy: mockScrollBy,
     scrollTo: mockScrollTo,
     innerHeight: 800,
+    HTMLInputElement: {
+      prototype: {},
+    },
   },
   writable: true,
+});
+
+// Set up the native value setter on HTMLInputElement.prototype
+Object.defineProperty(window.HTMLInputElement.prototype, 'value', {
+  set: mockNativeSetter,
+  configurable: true,
 });
 
 // Mock MouseEvent constructor
@@ -60,6 +75,25 @@ class MockEvent {
 }
 Object.defineProperty(global, 'Event', { value: MockEvent, writable: true });
 
+// Mock KeyboardEvent constructor
+class MockKeyboardEvent {
+  type: string;
+  key: string;
+  code: string;
+  keyCode: number;
+  bubbles: boolean;
+  cancelable: boolean;
+  constructor(type: string, opts?: any) {
+    this.type = type;
+    this.key = opts?.key ?? '';
+    this.code = opts?.code ?? '';
+    this.keyCode = opts?.keyCode ?? 0;
+    this.bubbles = opts?.bubbles ?? false;
+    this.cancelable = opts?.cancelable ?? false;
+  }
+}
+Object.defineProperty(global, 'KeyboardEvent', { value: MockKeyboardEvent, writable: true });
+
 // ─── Import after mocks ──────────────────────────────────────────────────────
 
 import { executeAction, ActionRequest, ActionResult } from '../content/action-executor';
@@ -82,7 +116,11 @@ function makeMockElement(overrides: Record<string, any> = {}): any {
     dispatchEvent: jest.fn(),
     focus: jest.fn(),
     value: '',
+    type: '',
+    name: '',
     scrollIntoView: jest.fn(),
+    closest: jest.fn().mockReturnValue(null),
+    getAttribute: jest.fn().mockReturnValue(null),
     style: {
       outline: '',
       transition: '',
@@ -99,6 +137,8 @@ describe('Action Executor', () => {
     jest.clearAllMocks();
     // Reset querySelector to not throw (valid selector) and return null by default
     mockQuerySelector.mockReturnValue(null);
+    // Reset the native setter mock
+    mockNativeSetter.mockReset();
   });
 
   // ── ALLOWED_ACTIONS ────────────────────────────────────────────────────
@@ -113,7 +153,7 @@ describe('Action Executor', () => {
     });
 
     it('accepts type action', async () => {
-      const mockInput = makeMockElement({ textContent: '' });
+      const mockInput = makeMockElement({ textContent: '', type: 'text' });
       mockQuerySelector.mockReturnValue(mockInput);
 
       const result = await executeAction(
@@ -270,7 +310,7 @@ describe('Action Executor', () => {
   // ── Rate limiting ─────────────────────────────────────────────────────
 
   describe('rate limiter', () => {
-    it('enforces minimum delay between actions', async () => {
+    it('enforces minimum delay between actions (promise chain)', async () => {
       const mockEl = makeMockElement({ textContent: 'X' });
       mockQuerySelector.mockReturnValue(mockEl);
 
@@ -381,8 +421,8 @@ describe('Action Executor', () => {
   // ── Type action ───────────────────────────────────────────────────────
 
   describe('type action', () => {
-    it('sets value and dispatches input + change events', async () => {
-      const mockInput = makeMockElement({ textContent: '' });
+    it('sets value via native setter and dispatches input + change events', async () => {
+      const mockInput = makeMockElement({ textContent: '', type: 'text' });
       mockQuerySelector.mockReturnValue(mockInput);
 
       const result = await executeAction(
@@ -391,8 +431,13 @@ describe('Action Executor', () => {
 
       expect(result.ok).toBe(true);
       expect(mockInput.focus).toHaveBeenCalled();
-      expect(mockInput.value).toBe('wireless headphones');
-      expect(mockInput.dispatchEvent).toHaveBeenCalledTimes(2); // input + change
+      // Should use native setter (React-compatible)
+      expect(mockNativeSetter).toHaveBeenCalledWith('wireless headphones');
+      // Should dispatch input + change events
+      const inputEventCalls = mockInput.dispatchEvent.mock.calls.filter(
+        (c: any[]) => c[0].type === 'input' || c[0].type === 'change'
+      );
+      expect(inputEventCalls.length).toBeGreaterThanOrEqual(2);
     });
 
     it('returns error when selector is missing', async () => {
@@ -404,7 +449,7 @@ describe('Action Executor', () => {
     });
 
     it('uses empty string when value is undefined', async () => {
-      const mockInput = makeMockElement({ textContent: '' });
+      const mockInput = makeMockElement({ textContent: '', type: 'text' });
       mockQuerySelector.mockReturnValue(mockInput);
 
       const result = await executeAction(
@@ -412,12 +457,13 @@ describe('Action Executor', () => {
       );
 
       expect(result.ok).toBe(true);
-      expect(mockInput.value).toBe('');
+      // Native setter should have been called with empty string
+      expect(mockNativeSetter).toHaveBeenCalledWith('');
     });
 
     it('truncates value in summary to 30 chars', async () => {
       const longValue = 'B'.repeat(60);
-      const mockInput = makeMockElement({ textContent: '' });
+      const mockInput = makeMockElement({ textContent: '', type: 'text' });
       mockQuerySelector.mockReturnValue(mockInput);
 
       const result = await executeAction(
@@ -438,6 +484,100 @@ describe('Action Executor', () => {
       );
       expect(result.ok).toBe(false);
       expect(result.error).toContain('not found');
+    });
+  });
+
+  // ── Auto-submit search boxes ─────────────────────────────────────────
+
+  describe('auto-submit search boxes', () => {
+    it('auto-submits when input type is "search"', async () => {
+      const mockInput = makeMockElement({
+        textContent: '',
+        type: 'search',
+        name: '',
+        getAttribute: jest.fn().mockReturnValue(null),
+        closest: jest.fn().mockReturnValue(null),
+      });
+      mockQuerySelector.mockReturnValue(mockInput);
+
+      const result = await executeAction(
+        makeRequest({ actionType: 'type', selector: '#search', value: 'headphones' })
+      );
+
+      expect(result.ok).toBe(true);
+      expect(result.summary).toContain('searched');
+
+      // Should dispatch keyboard events (Enter key)
+      const keydownCalls = mockInput.dispatchEvent.mock.calls.filter(
+        (c: any[]) => c[0].type === 'keydown'
+      );
+      expect(keydownCalls.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('auto-submits when input role is "searchbox"', async () => {
+      const mockInput = makeMockElement({
+        textContent: '',
+        type: 'text',
+        name: '',
+        getAttribute: jest.fn((attr: string) => {
+          if (attr === 'role') return 'searchbox';
+          return null;
+        }),
+        closest: jest.fn().mockReturnValue(null),
+      });
+      mockQuerySelector.mockReturnValue(mockInput);
+
+      const result = await executeAction(
+        makeRequest({ actionType: 'type', selector: '#search', value: 'shoes' })
+      );
+
+      expect(result.ok).toBe(true);
+      expect(result.summary).toContain('searched');
+    });
+
+    it('auto-submits when aria-label contains "search"', async () => {
+      const mockInput = makeMockElement({
+        textContent: '',
+        type: 'text',
+        name: '',
+        getAttribute: jest.fn((attr: string) => {
+          if (attr === 'aria-label') return 'Search products';
+          if (attr === 'role') return null;
+          return null;
+        }),
+        closest: jest.fn().mockReturnValue(null),
+      });
+      mockQuerySelector.mockReturnValue(mockInput);
+
+      const result = await executeAction(
+        makeRequest({ actionType: 'type', selector: '#search', value: 'laptop' })
+      );
+
+      expect(result.ok).toBe(true);
+      expect(result.summary).toContain('searched');
+    });
+
+    it('does not auto-submit for regular text inputs', async () => {
+      const mockInput = makeMockElement({
+        textContent: '',
+        type: 'text',
+        name: 'email',
+        getAttribute: jest.fn().mockReturnValue(null),
+        closest: jest.fn().mockReturnValue(null),
+      });
+      mockQuerySelector.mockReturnValue(mockInput);
+
+      const result = await executeAction(
+        makeRequest({ actionType: 'type', selector: '#email', value: 'test@test.com' })
+      );
+
+      expect(result.ok).toBe(true);
+      expect(result.summary).not.toContain('searched');
+      // Should NOT dispatch keydown for Enter
+      const keydownCalls = mockInput.dispatchEvent.mock.calls.filter(
+        (c: any[]) => c[0].type === 'keydown'
+      );
+      expect(keydownCalls.length).toBe(0);
     });
   });
 
@@ -672,6 +812,18 @@ describe('Action Executor', () => {
       );
       expect(result.ok).toBe(true);
       expect(mockScrollBy).toHaveBeenCalled();
+    });
+
+    it('includes 600ms settle delay for direction-based scroll', async () => {
+      const start = Date.now();
+      await executeAction(
+        makeRequest({ actionType: 'scroll', direction: 'down', selector: undefined })
+      );
+      const elapsed = Date.now() - start;
+
+      // Should have waited at least ~600ms (SCROLL_SETTLE_MS) + rate limit
+      // Allow some tolerance
+      expect(elapsed).toBeGreaterThanOrEqual(500);
     });
   });
 

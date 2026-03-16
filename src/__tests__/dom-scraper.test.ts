@@ -2,13 +2,20 @@
  * Comprehensive unit tests for src/content/dom-scraper.ts
  *
  * Covers:
- *   - Viewport filtering (isInViewport with margin)
+ *   - Viewport filtering (isVisible)
  *   - Bounding box data (getBBox) on elements
- *   - Selector building priority chain (id > data-testid > aria-label > name > class)
+ *   - Selector building priority chain (id > data-testid > data-* > aria-label > title > href > name > class)
  *   - Button, link, input, form scraping
  *   - Product detection (Amazon, Schema.org, generic, JSON-LD)
- *   - Text content extraction (5000 char limit)
+ *   - Text content extraction (8000 char limit)
  *   - Full scrapeDom() returns correct structure
+ *   - classifyElement semantic role detection
+ *   - Link role detection (product-link, cart-link, video-link)
+ *   - Safe wrapper (scraper function failure doesn't crash scrapeDom)
+ *   - href-based selector for links (a[href*="..."])
+ *   - title-based selector
+ *   - data-video-id, data-product-id selectors
+ *   - nth-of-type (not nth-child)
  */
 
 // ─── Mock CSS.escape ─────────────────────────────────────────────────────────
@@ -102,8 +109,8 @@ interface DomSnapshot {
   description: string;
   canonicalUrl: string;
   sections: Array<{ type: string; heading?: string; summary: string }>;
-  buttons: Array<{ selector: string; text: string; visible: boolean; bbox?: { x: number; y: number; w: number; h: number } }>;
-  links: Array<{ selector: string; text: string; href?: string; visible: boolean; bbox?: any }>;
+  buttons: Array<{ selector: string; text: string; role?: string; visible: boolean; bbox?: { x: number; y: number; w: number; h: number } }>;
+  links: Array<{ selector: string; text: string; role?: string; href?: string; visible: boolean; bbox?: any }>;
   inputs: Array<{ selector: string; type: string; value: string; placeholder: string; label?: string; visible: boolean; bbox?: any }>;
   forms: Array<{ selector: string; action: string; method: string; inputs: any[] }>;
   headings: Array<{ level: number; text: string }>;
@@ -266,7 +273,12 @@ describe('DOM Scraper', () => {
         getAttribute: jest.fn((attr: string) => {
           if (attr === 'data-testid') return null;
           if (attr === 'data-asin') return null;
+          if (attr === 'data-video-id') return null;
+          if (attr === 'data-id') return null;
+          if (attr === 'data-product-id') return null;
+          if (attr === 'data-item-id') return null;
           if (attr === 'aria-label') return 'Close dialog';
+          if (attr === 'title') return null;
           if (attr === 'name') return null;
           return null;
         }),
@@ -282,7 +294,98 @@ describe('DOM Scraper', () => {
       const snapshot = scrapeDom();
       if (snapshot.buttons.length > 0) {
         expect(snapshot.buttons[0].selector).toContain('aria-label');
-        expect(snapshot.buttons[0].selector).toContain('Close dialog');
+        // CSS.escape turns "Close dialog" into "Close\ dialog" — check for escaped form
+        expect(snapshot.buttons[0].selector).toContain('Close');
+        expect(snapshot.buttons[0].selector).toContain('dialog');
+      }
+    });
+
+    it('uses title attribute when higher-priority attributes are absent', () => {
+      const mockBtn = createMockElement({
+        id: '',
+        tagName: 'BUTTON',
+        textContent: 'Play',
+        getAttribute: jest.fn((attr: string) => {
+          if (attr === 'data-testid') return null;
+          if (attr === 'data-asin') return null;
+          if (attr === 'data-video-id') return null;
+          if (attr === 'data-id') return null;
+          if (attr === 'data-product-id') return null;
+          if (attr === 'data-item-id') return null;
+          if (attr === 'aria-label') return null;
+          if (attr === 'title') return 'Play video';
+          if (attr === 'name') return null;
+          return null;
+        }),
+      });
+
+      mockDocument.querySelectorAll.mockImplementation((selector: string) => {
+        if (selector.includes('button') || selector.includes('role="button"')) {
+          return [mockBtn];
+        }
+        return [];
+      });
+
+      const snapshot = scrapeDom();
+      if (snapshot.buttons.length > 0) {
+        expect(snapshot.buttons[0].selector).toContain('title');
+        expect(snapshot.buttons[0].selector).toContain('Play');
+      }
+    });
+
+    it('uses data-video-id when present', () => {
+      const mockBtn = createMockElement({
+        id: '',
+        tagName: 'BUTTON',
+        textContent: 'Watch',
+        getAttribute: jest.fn((attr: string) => {
+          if (attr === 'data-testid') return null;
+          if (attr === 'data-asin') return null;
+          if (attr === 'data-video-id') return 'abc123';
+          return null;
+        }),
+      });
+
+      mockDocument.querySelectorAll.mockImplementation((selector: string) => {
+        if (selector.includes('button') || selector.includes('role="button"')) {
+          return [mockBtn];
+        }
+        return [];
+      });
+
+      const snapshot = scrapeDom();
+      if (snapshot.buttons.length > 0) {
+        expect(snapshot.buttons[0].selector).toContain('data-video-id');
+        expect(snapshot.buttons[0].selector).toContain('abc123');
+      }
+    });
+
+    it('uses data-product-id when present', () => {
+      const mockBtn = createMockElement({
+        id: '',
+        tagName: 'BUTTON',
+        textContent: 'Add',
+        getAttribute: jest.fn((attr: string) => {
+          if (attr === 'data-testid') return null;
+          if (attr === 'data-asin') return null;
+          if (attr === 'data-video-id') return null;
+          if (attr === 'data-id') return null;
+          if (attr === 'data-product-id') return 'prod-456';
+          return null;
+        }),
+      });
+
+      mockDocument.querySelectorAll.mockImplementation((selector: string) => {
+        if (selector.includes('button') || selector.includes('role="button"')) {
+          return [mockBtn];
+        }
+        return [];
+      });
+
+      const snapshot = scrapeDom();
+      if (snapshot.buttons.length > 0) {
+        expect(snapshot.buttons[0].selector).toContain('data-product-id');
+        expect(snapshot.buttons[0].selector).toContain('prod-456');
       }
     });
 
@@ -294,7 +397,12 @@ describe('DOM Scraper', () => {
         getAttribute: jest.fn((attr: string) => {
           if (attr === 'data-testid') return null;
           if (attr === 'data-asin') return null;
+          if (attr === 'data-video-id') return null;
+          if (attr === 'data-id') return null;
+          if (attr === 'data-product-id') return null;
+          if (attr === 'data-item-id') return null;
           if (attr === 'aria-label') return null;
+          if (attr === 'title') return null;
           if (attr === 'name') return 'go-btn';
           return null;
         }),
@@ -333,6 +441,82 @@ describe('DOM Scraper', () => {
       const snapshot = scrapeDom();
       if (snapshot.buttons.length > 0) {
         expect(snapshot.buttons[0].selector).toContain('button');
+      }
+    });
+
+    it('uses href-based selector for links', () => {
+      const mockLink = createMockElement({
+        id: '',
+        tagName: 'A',
+        textContent: 'Product Page',
+        href: 'https://example.com/product/wireless-headphones',
+        getAttribute: jest.fn((attr: string) => {
+          if (attr === 'data-testid') return null;
+          if (attr === 'data-asin') return null;
+          if (attr === 'data-video-id') return null;
+          if (attr === 'data-id') return null;
+          if (attr === 'data-product-id') return null;
+          if (attr === 'data-item-id') return null;
+          if (attr === 'aria-label') return null;
+          if (attr === 'title') return null;
+          if (attr === 'href') return '/product/wireless-headphones';
+          if (attr === 'name') return null;
+          return null;
+        }),
+      });
+
+      mockDocument.querySelectorAll.mockImplementation((selector: string) => {
+        if (selector === 'a[href]') {
+          return [mockLink];
+        }
+        return [];
+      });
+
+      const snapshot = scrapeDom();
+      if (snapshot.links.length > 0) {
+        // Should use a[href*="..."] format
+        expect(snapshot.links[0].selector).toContain('a[href');
+      }
+    });
+
+    it('uses nth-of-type (not nth-child) for disambiguation', () => {
+      const parent = createMockElement({
+        id: 'container',
+        tagName: 'DIV',
+      });
+
+      const btn1 = createMockElement({
+        id: '',
+        tagName: 'BUTTON',
+        textContent: 'First',
+        classList: [],
+        getAttribute: jest.fn(() => null),
+        parentElement: parent,
+      });
+
+      const btn2 = createMockElement({
+        id: '',
+        tagName: 'BUTTON',
+        textContent: 'Second',
+        classList: [],
+        getAttribute: jest.fn(() => null),
+        parentElement: parent,
+      });
+
+      parent.children = [btn1, btn2];
+
+      mockDocument.querySelectorAll.mockImplementation((selector: string) => {
+        if (selector.includes('button') || selector.includes('role="button"')) {
+          return [btn1, btn2];
+        }
+        return [];
+      });
+
+      const snapshot = scrapeDom();
+      // At least one button should use nth-of-type
+      const nthOfTypeUsed = snapshot.buttons.some((b: any) => b.selector.includes('nth-of-type'));
+      if (snapshot.buttons.length >= 2) {
+        expect(nthOfTypeUsed).toBe(true);
       }
     });
   });
@@ -377,7 +561,7 @@ describe('DOM Scraper', () => {
   // ── Button scraping ────────────────────────────────────────────────────
 
   describe('button scraping', () => {
-    it('scrapes visible buttons in viewport', () => {
+    it('scrapes visible buttons', () => {
       const mockBtn = createMockElement({
         id: 'btn1',
         tagName: 'BUTTON',
@@ -485,8 +669,8 @@ describe('DOM Scraper', () => {
       expect(snapshot.links[0].href).toBe('https://example.com/products');
     });
 
-    it('limits links to 60', () => {
-      const links = Array.from({ length: 80 }, (_, i) =>
+    it('limits links to 100', () => {
+      const links = Array.from({ length: 120 }, (_, i) =>
         createMockElement({
           id: `link-${i}`,
           tagName: 'A',
@@ -503,14 +687,77 @@ describe('DOM Scraper', () => {
       });
 
       const snapshot = scrapeDom();
-      expect(snapshot.links.length).toBeLessThanOrEqual(60);
+      expect(snapshot.links.length).toBeLessThanOrEqual(100);
+    });
+
+    it('detects product-link role for /dp/ URLs', () => {
+      const mockLink = createMockElement({
+        id: 'prod-link',
+        tagName: 'A',
+        textContent: 'Wireless Headphones',
+        href: 'https://amazon.com/dp/B09ABC1234',
+        getAttribute: jest.fn(() => null),
+      });
+
+      mockDocument.querySelectorAll.mockImplementation((selector: string) => {
+        if (selector === 'a[href]') {
+          return [mockLink];
+        }
+        return [];
+      });
+
+      const snapshot = scrapeDom();
+      expect(snapshot.links.length).toBe(1);
+      expect(snapshot.links[0].role).toBe('product-link');
+    });
+
+    it('detects cart-link role for /cart URLs', () => {
+      const mockLink = createMockElement({
+        id: 'cart-link',
+        tagName: 'A',
+        textContent: 'View Cart',
+        href: 'https://amazon.com/cart',
+        getAttribute: jest.fn(() => null),
+      });
+
+      mockDocument.querySelectorAll.mockImplementation((selector: string) => {
+        if (selector === 'a[href]') {
+          return [mockLink];
+        }
+        return [];
+      });
+
+      const snapshot = scrapeDom();
+      expect(snapshot.links.length).toBe(1);
+      expect(snapshot.links[0].role).toBe('cart-link');
+    });
+
+    it('detects video-link role for /watch URLs', () => {
+      const mockLink = createMockElement({
+        id: 'vid-link',
+        tagName: 'A',
+        textContent: 'Tutorial Video',
+        href: 'https://youtube.com/watch?v=abc123',
+        getAttribute: jest.fn(() => null),
+      });
+
+      mockDocument.querySelectorAll.mockImplementation((selector: string) => {
+        if (selector === 'a[href]') {
+          return [mockLink];
+        }
+        return [];
+      });
+
+      const snapshot = scrapeDom();
+      expect(snapshot.links.length).toBe(1);
+      expect(snapshot.links[0].role).toBe('video-link');
     });
   });
 
   // ── Input scraping ────────────────────────────────────────────────────
 
   describe('input scraping', () => {
-    it('scrapes input elements in viewport', () => {
+    it('scrapes input elements', () => {
       const mockInput = createMockElement({
         id: 'search-input',
         tagName: 'INPUT',
@@ -576,15 +823,15 @@ describe('DOM Scraper', () => {
   // ── Text content truncation ────────────────────────────────────────────
 
   describe('text content extraction', () => {
-    it('truncates text_content to 5000 chars maximum', () => {
+    it('truncates text_content to 8000 chars maximum', () => {
       const longText = 'A'.repeat(10000);
       mockDocument.body.innerText = longText;
 
       const snapshot = scrapeDom();
-      expect(snapshot.text_content.length).toBeLessThanOrEqual(5000);
+      expect(snapshot.text_content.length).toBeLessThanOrEqual(8000);
     });
 
-    it('preserves text content when under 5000 chars', () => {
+    it('preserves text content when under 8000 chars', () => {
       const shortText = 'Short content';
       mockDocument.body.innerText = shortText;
 
@@ -648,6 +895,135 @@ describe('DOM Scraper', () => {
       const snapshot = scrapeDom();
       // Should have at least the synthetic main section
       expect(snapshot.sections.length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  // ── classifyElement ────────────────────────────────────────────────────
+
+  describe('classifyElement (via button roles)', () => {
+    it('classifies "Add to Cart" button as add-to-cart role', () => {
+      const mockBtn = createMockElement({
+        id: 'cart-btn',
+        tagName: 'BUTTON',
+        textContent: 'Add to Cart',
+        getAttribute: jest.fn(() => null),
+      });
+
+      mockDocument.querySelectorAll.mockImplementation((selector: string) => {
+        if (selector.includes('button') || selector.includes('role="button"')) {
+          return [mockBtn];
+        }
+        return [];
+      });
+
+      const snapshot = scrapeDom();
+      expect(snapshot.buttons.length).toBe(1);
+      expect(snapshot.buttons[0].role).toBe('add-to-cart');
+    });
+
+    it('classifies "Buy Now" button as buy-now role', () => {
+      const mockBtn = createMockElement({
+        id: 'buy-btn',
+        tagName: 'BUTTON',
+        textContent: 'Buy Now',
+        getAttribute: jest.fn(() => null),
+      });
+
+      mockDocument.querySelectorAll.mockImplementation((selector: string) => {
+        if (selector.includes('button') || selector.includes('role="button"')) {
+          return [mockBtn];
+        }
+        return [];
+      });
+
+      const snapshot = scrapeDom();
+      expect(snapshot.buttons.length).toBe(1);
+      expect(snapshot.buttons[0].role).toBe('buy-now');
+    });
+
+    it('classifies "Close" button as close role', () => {
+      const mockBtn = createMockElement({
+        id: 'close-btn',
+        tagName: 'BUTTON',
+        textContent: 'Close',
+        getAttribute: jest.fn(() => null),
+      });
+
+      mockDocument.querySelectorAll.mockImplementation((selector: string) => {
+        if (selector.includes('button') || selector.includes('role="button"')) {
+          return [mockBtn];
+        }
+        return [];
+      });
+
+      const snapshot = scrapeDom();
+      expect(snapshot.buttons.length).toBe(1);
+      expect(snapshot.buttons[0].role).toBe('close');
+    });
+
+    it('classifies "Next" button as navigation role', () => {
+      const mockBtn = createMockElement({
+        id: 'next-btn',
+        tagName: 'BUTTON',
+        textContent: 'Next Page',
+        getAttribute: jest.fn(() => null),
+      });
+
+      mockDocument.querySelectorAll.mockImplementation((selector: string) => {
+        if (selector.includes('button') || selector.includes('role="button"')) {
+          return [mockBtn];
+        }
+        return [];
+      });
+
+      const snapshot = scrapeDom();
+      expect(snapshot.buttons.length).toBe(1);
+      expect(snapshot.buttons[0].role).toBe('navigation');
+    });
+
+    it('returns undefined role for generic buttons', () => {
+      const mockBtn = createMockElement({
+        id: 'generic-btn',
+        tagName: 'BUTTON',
+        textContent: 'Details',
+        getAttribute: jest.fn(() => null),
+      });
+
+      mockDocument.querySelectorAll.mockImplementation((selector: string) => {
+        if (selector.includes('button') || selector.includes('role="button"')) {
+          return [mockBtn];
+        }
+        return [];
+      });
+
+      const snapshot = scrapeDom();
+      expect(snapshot.buttons.length).toBe(1);
+      expect(snapshot.buttons[0].role).toBeUndefined();
+    });
+  });
+
+  // ── Safe wrapper ──────────────────────────────────────────────────────
+
+  describe('safe wrapper', () => {
+    it('does not crash scrapeDom when internal scraper throws', () => {
+      // Make querySelectorAll throw for a specific selector pattern
+      // that only affects one sub-scraper
+      mockDocument.querySelectorAll.mockImplementation((selector: string) => {
+        if (selector === 'h1, h2, h3, h4, h5, h6') {
+          throw new Error('Simulated heading scrape failure');
+        }
+        return [];
+      });
+
+      // Suppress the console.warn from safe()
+      jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+      // scrapeDom should still succeed
+      const snapshot = scrapeDom();
+      expect(snapshot).toBeDefined();
+      expect(snapshot.url).toBe('https://example.com/test-page');
+      // Headings should be empty (fallback) but not crash
+      expect(Array.isArray(snapshot.headings)).toBe(true);
     });
   });
 
@@ -766,8 +1142,7 @@ describe('DOM Scraper', () => {
           return null;
         }),
         querySelector: jest.fn((sel: string) => {
-          // Check link selector BEFORE h2 check, because the link
-          // selector 'a[href*="/dp/"], a.a-link-normal, h2 a' contains 'h2'
+          // Check link selector BEFORE h2 check
           if (sel.includes('/dp/') || sel.includes('a-link-normal')) {
             return createMockElement({
               id: 'product-link',
@@ -1018,21 +1393,21 @@ describe('DOM Scraper', () => {
     });
   });
 
-  // ── Viewport filtering ─────────────────────────────────────────────────
+  // ── Visibility filtering ──────────────────────────────────────────────
 
-  describe('viewport filtering', () => {
-    it('excludes buttons outside viewport', () => {
+  describe('visibility filtering', () => {
+    it('excludes buttons with zero dimensions', () => {
       const mockBtn = createMockElement({
-        id: 'offscreen-btn',
+        id: 'zero-btn',
         tagName: 'BUTTON',
-        textContent: 'Offscreen Button',
+        textContent: 'Zero Size Button',
         getBoundingClientRect: jest.fn().mockReturnValue({
-          width: 100,
-          height: 50,
-          top: 2000,   // way below viewport (innerHeight = 800 + margin 200 = 1000)
-          bottom: 2050,
+          width: 0,
+          height: 0,
+          top: 100,
+          bottom: 100,
           left: 50,
-          right: 150,
+          right: 50,
         }),
       });
 
@@ -1044,20 +1419,20 @@ describe('DOM Scraper', () => {
       });
 
       const snapshot = scrapeDom();
-      // Button is below the viewport + margin, so it should be excluded
+      // isVisible checks width > 0 && height > 0
       expect(snapshot.buttons.length).toBe(0);
     });
 
-    it('includes buttons within viewport margin', () => {
+    it('includes visible buttons with positive dimensions', () => {
       const mockBtn = createMockElement({
-        id: 'near-btn',
+        id: 'visible-btn',
         tagName: 'BUTTON',
-        textContent: 'Near Viewport',
+        textContent: 'Visible Button',
         getBoundingClientRect: jest.fn().mockReturnValue({
           width: 100,
           height: 50,
-          top: 900,    // within margin (800 + 200 = 1000)
-          bottom: 950,
+          top: 100,
+          bottom: 150,
           left: 50,
           right: 150,
         }),

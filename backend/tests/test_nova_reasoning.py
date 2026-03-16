@@ -11,6 +11,7 @@ from botocore.exceptions import ClientError, NoCredentialsError, PartialCredenti
 from backend.services.nova_reasoning import (
     CONTINUE_SYSTEM_PROMPT,
     SYSTEM_PROMPT,
+    _extract_json,
     reason_about_page,
     reason_continue,
 )
@@ -748,3 +749,146 @@ class TestReasonContinueClientErrors:
 
             with pytest.raises(ValueError, match="(?i)failed to create"):
                 reason_continue("test", [], _tiny_png_b64(), _SAMPLE_DOM)
+
+
+# ── _extract_json tests ──────────────────────────────────────────────────────
+
+
+class TestExtractJson:
+    """Test the _extract_json helper function for various input formats."""
+
+    def test_direct_json_object(self):
+        """Direct JSON object parses correctly."""
+        text = '{"type": "answer", "text": "Hello"}'
+        result = _extract_json(text)
+        assert result is not None
+        assert result["type"] == "answer"
+        assert result["text"] == "Hello"
+
+    def test_direct_json_with_whitespace(self):
+        """JSON with leading/trailing whitespace parses correctly."""
+        text = '  \n  {"type": "done", "summary": "Complete"}  \n  '
+        result = _extract_json(text)
+        assert result is not None
+        assert result["type"] == "done"
+
+    def test_markdown_code_block_json(self):
+        """JSON wrapped in markdown ```json ... ``` code block."""
+        text = 'Here is the response:\n```json\n{"type": "steps", "actions": [{"action": "click"}]}\n```'
+        result = _extract_json(text)
+        assert result is not None
+        assert result["type"] == "steps"
+        assert isinstance(result["actions"], list)
+
+    def test_markdown_code_block_no_language(self):
+        """JSON wrapped in markdown ``` ... ``` code block (no language hint)."""
+        text = '```\n{"type": "answer", "text": "Result"}\n```'
+        result = _extract_json(text)
+        assert result is not None
+        assert result["type"] == "answer"
+
+    def test_json_embedded_in_text(self):
+        """JSON object embedded in surrounding text."""
+        text = 'I think the answer is: {"type": "answer", "text": "The price is $10"} as you can see.'
+        result = _extract_json(text)
+        assert result is not None
+        assert result["type"] == "answer"
+        assert "$10" in result["text"]
+
+    def test_json_array(self):
+        """JSON array (not object) is extracted."""
+        text = '[{"action": "click", "selector": "#btn"}, {"action": "type", "value": "test"}]'
+        result = _extract_json(text)
+        assert result is not None
+        assert isinstance(result, list)
+        assert len(result) == 2
+        assert result[0]["action"] == "click"
+
+    def test_json_array_in_text(self):
+        """JSON array embedded in text — Strategy 3 (find {) triggers before Strategy 4 (find [)."""
+        # When a JSON array contains objects, _extract_json finds the first { first,
+        # so it returns the inner object, not the array.
+        # For a pure array without preceding {, Strategy 4 works.
+        text = 'The steps are: ["step1", "step2", "step3"] end.'
+        result = _extract_json(text)
+        assert result is not None
+        assert isinstance(result, list)
+        assert len(result) == 3
+        assert result[0] == "step1"
+
+    def test_no_json_returns_none(self):
+        """Plain text without JSON returns None."""
+        text = "I cannot determine the price from this page."
+        result = _extract_json(text)
+        assert result is None
+
+    def test_empty_string_returns_none(self):
+        """Empty string returns None."""
+        result = _extract_json("")
+        assert result is None
+
+    def test_invalid_json_returns_none(self):
+        """Malformed JSON returns None."""
+        text = "{ invalid json !!!"
+        result = _extract_json(text)
+        assert result is None
+
+    def test_nested_json_object(self):
+        """Deeply nested JSON is extracted correctly."""
+        obj = {
+            "type": "steps",
+            "reasoning": "Need to fill form",
+            "actions": [
+                {"action": "type", "selector": "#email", "value": "a@b.com", "description": "Type email"}
+            ],
+        }
+        text = json.dumps(obj)
+        result = _extract_json(text)
+        assert result is not None
+        assert result["type"] == "steps"
+        assert result["actions"][0]["value"] == "a@b.com"
+
+
+# ── System prompt content tests ──────────────────────────────────────────────
+
+
+class TestSystemPromptSpeakField:
+    """Verify that SYSTEM_PROMPT requires the 'speak' field in action definitions."""
+
+    def test_system_prompt_contains_speak_field_requirement(self):
+        """SYSTEM_PROMPT must mention the 'speak' field for actions."""
+        assert '"speak"' in SYSTEM_PROMPT or "'speak'" in SYSTEM_PROMPT
+        assert "speak" in SYSTEM_PROMPT.lower()
+
+    def test_system_prompt_has_speak_examples(self):
+        """SYSTEM_PROMPT should contain example speak phrases."""
+        # Check for at least one example speak phrase
+        assert "Opening" in SYSTEM_PROMPT or "Clicking" in SYSTEM_PROMPT or "Searching" in SYSTEM_PROMPT
+
+
+class TestContinuePromptSelectorRules:
+    """Verify that CONTINUE_SYSTEM_PROMPT contains selector rules."""
+
+    def test_continue_prompt_contains_selector_rules(self):
+        """CONTINUE_SYSTEM_PROMPT must contain important selector rules."""
+        prompt = CONTINUE_SYSTEM_PROMPT
+        # Rule about auto-generated IDs
+        assert "autoid" in prompt.lower() or "auto-generated" in prompt.lower() or "a-autoid" in prompt
+
+    def test_continue_prompt_mentions_href_selectors(self):
+        """CONTINUE_SYSTEM_PROMPT should mention href-based selectors."""
+        assert "href" in CONTINUE_SYSTEM_PROMPT
+
+    def test_continue_prompt_mentions_add_to_cart(self):
+        """CONTINUE_SYSTEM_PROMPT should mention add-to-cart selector guidance."""
+        prompt_lower = CONTINUE_SYSTEM_PROMPT.lower()
+        assert "add to cart" in prompt_lower or "add-to-cart" in prompt_lower
+
+    def test_continue_prompt_mentions_speak_field(self):
+        """CONTINUE_SYSTEM_PROMPT must mention the 'speak' field for actions."""
+        assert '"speak"' in CONTINUE_SYSTEM_PROMPT or "'speak'" in CONTINUE_SYSTEM_PROMPT
+
+    def test_continue_prompt_single_action_rule(self):
+        """CONTINUE_SYSTEM_PROMPT should instruct returning exactly one action at a time."""
+        prompt_lower = CONTINUE_SYSTEM_PROMPT.lower()
+        assert "one action" in prompt_lower or "exactly one" in prompt_lower
