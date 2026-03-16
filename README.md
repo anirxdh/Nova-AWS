@@ -17,6 +17,7 @@
 </p>
 
 <p align="center">
+  <a href="https://youtu.be/szfykWVgEYM"><strong>Demo Video</strong></a> &middot;
   <a href="https://screen-sense-nova-anirxdh.netlify.app/"><strong>Landing Page</strong></a> &middot;
   <a href="https://github.com/anirxdh/Nova-AWS"><strong>GitHub</strong></a>
 </p>
