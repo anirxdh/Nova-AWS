@@ -1,21 +1,16 @@
 import base64
 import json
 import os
-
-import boto3
-from botocore.exceptions import ClientError, NoCredentialsError, PartialCredentialsError
-
 import re
 
-_bedrock_client = None
+import httpx
+
+GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
+GROQ_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
 
 
 def _extract_json(text: str) -> dict | list | None:
-    """Extract JSON from Nova's response, handling markdown code blocks and extra text.
-
-    Nova sometimes returns JSON wrapped in markdown (```json ... ```) or with
-    extra text before/after. This function tries multiple extraction strategies.
-    """
+    """Extract JSON from LLM response, handling markdown code blocks and extra text."""
     # Strategy 1: Direct parse
     try:
         parsed = json.loads(text.strip())
@@ -23,7 +18,7 @@ def _extract_json(text: str) -> dict | list | None:
     except json.JSONDecodeError:
         pass
 
-    # Strategy 2: Extract from markdown code block (```json ... ``` or ``` ... ```)
+    # Strategy 2: Extract from markdown code block
     code_block = re.search(r'```(?:json)?\s*\n?(.*?)\n?\s*```', text, re.DOTALL)
     if code_block:
         try:
@@ -32,7 +27,7 @@ def _extract_json(text: str) -> dict | list | None:
         except json.JSONDecodeError:
             pass
 
-    # Strategy 3: Find the first complete JSON object { ... } in the text
+    # Strategy 3: Find the first complete JSON object { ... }
     brace_start = text.find('{')
     if brace_start != -1:
         depth = 0
@@ -67,34 +62,11 @@ def _extract_json(text: str) -> dict | list | None:
     return None
 
 
-def _get_bedrock_client():
-    """Return a cached Bedrock runtime client, creating one if needed."""
-    global _bedrock_client
-    if _bedrock_client is not None:
-        return _bedrock_client
-
-    aws_key = os.getenv("AWS_ACCESS_KEY_ID")
-    aws_secret = os.getenv("AWS_SECRET_ACCESS_KEY")
-    aws_region = os.getenv("AWS_REGION", "us-east-1")
-
-    if not aws_key or not aws_secret or aws_key == "your-key-here":
-        raise ValueError(
-            "AWS credentials not configured — set AWS_ACCESS_KEY_ID and "
-            "AWS_SECRET_ACCESS_KEY in backend/.env"
-        )
-
-    try:
-        client = boto3.client(
-            "bedrock-runtime",
-            region_name=aws_region,
-            aws_access_key_id=aws_key,
-            aws_secret_access_key=aws_secret,
-        )
-    except Exception as e:
-        raise ValueError(f"Failed to create AWS client: {e}") from e
-
-    _bedrock_client = client
-    return _bedrock_client
+def _get_groq_key() -> str:
+    key = os.getenv("GROQ_API_KEY", "")
+    if not key:
+        raise ValueError("GROQ_API_KEY not set in backend/.env")
+    return key
 
 
 CONTINUE_SYSTEM_PROMPT = """You are ScreenSense, a screen-aware AI execution agent in a Chrome extension.
@@ -154,7 +126,6 @@ MULTI-STEP TASK EXAMPLES:
 - "Add cheapest USB-C cable to cart" → search → find cheapest → click product → click Add to Cart → done
 - "Write an email to john about meeting" → click compose → type to field → type subject → type body → click send → done
 - "Find and open the first search result" → type query → click search → click first result → done
-- "Order protein bars from a shopping site" (started on different site) → navigate to site → search → click product → add to cart → done
 
 NAVIGATION CONTEXT:
 - If a previous action was "Page navigated", you are now on a NEW page. Look at the current URL and DOM to understand where you are.
@@ -173,12 +144,12 @@ CRITICAL RULES:
 - The DOM snapshot contains: buttons[], links[], inputs[], forms[], text_content, url, title
 - Each element has a "selector" field — USE IT EXACTLY as provided.
 - If the user asks about content visible on the page or in the DOM, ALWAYS answer based on what you see. You have full knowledge of the page from both the screenshot AND the DOM snapshot.
-- If the user wants to do something on a DIFFERENT website, use the navigate action to go there first. For example, if the user is on google.com and says "order protein bars from Amazon", navigate to https://www.amazon.com first, then the agent loop will continue on Amazon.
+- If the user wants to do something on a DIFFERENT website, use the navigate action to go there first.
 - You CAN navigate to any website. Use navigate action with the full URL.
 
 RESPONSE FORMAT — respond with ONE JSON object only, no markdown, no explanation:
 
-IMPORTANT: Always include a "reasoning" field in your JSON response with a 1-2 sentence explanation of your decision. This helps the user understand what you're doing.
+IMPORTANT: Always include a "reasoning" field in your JSON response with a 1-2 sentence explanation of your decision.
 
 For QUESTIONS (user asks about the page):
 {"type": "answer", "reasoning": "I can see the price displayed in the product details section", "text": "your answer"}
@@ -195,36 +166,50 @@ Every action MUST include a "speak" field — a 3-5 word phrase spoken aloud to 
 - scroll: {"action": "scroll", "direction": "up|down|top|bottom", "description": "Scroll", "speak": "Scrolling down"}
 - extract: {"action": "extract", "selector": "<from DOM>", "description": "Get text from X", "speak": "Reading text"}
 
-EXAMPLES (generic — adapt selectors from the actual DOM snapshot):
-User: "search for wireless headphones"
-DOM has: inputs: [{"selector": "#search-input", "type": "text", "value": ""}]
-Response: {"type": "steps", "reasoning": "I see a search box. I'll type the query.", "actions": [{"action": "type", "selector": "#search-input", "value": "wireless headphones", "description": "Type 'wireless headphones' into search box"}]}
-
-User: "scroll down to see reviews"
-Response: {"type": "steps", "reasoning": "The user wants to scroll down.", "actions": [{"action": "scroll", "direction": "down", "description": "Scroll down"}]}
-
-User: "what is the price?"
-Response: {"type": "answer", "reasoning": "I can see the price in the page content.", "text": "The price is $29.99"}
-
-User: "order quest protein bars from Amazon" (user is on a different website)
-Response: {"type": "steps", "reasoning": "We're not on Amazon. I'll navigate there first.", "actions": [{"action": "navigate", "url": "https://www.amazon.com", "description": "Navigate to Amazon"}]}
-
-User: "go to youtube and search for coding tutorials"
-Response: {"type": "steps", "reasoning": "I'll navigate to YouTube.", "actions": [{"action": "navigate", "url": "https://www.youtube.com", "description": "Navigate to YouTube"}]}
-
 CRITICAL RULES:
 - Return EXACTLY ONE action at a time. After each action, you'll get a fresh screenshot and DOM with updated selectors.
-- The ONE exception: navigate actions can stand alone (the page will reload and you'll get fresh context).
 - Always scroll commands MUST return type "steps" with a scroll action — NEVER return "done" or "answer" for scroll requests.
 - NEVER return "done" on the first call unless the task is literally already complete on the current page.
-- If the user asks for MULTIPLE items (e.g., "get protein bars, milk, and bread"), you must complete ALL items. The agent loop will keep calling you until everything is done.
 - Be FAST and DECISIVE. One action, move forward.
 
 IMPORTANT: Always look at the DOM snapshot FIRST to find the right selector. The screenshot helps you understand what the user sees, but the DOM snapshot has the actual selectors you must use."""
 
 
+def _call_groq(system_prompt: str, user_content: list[dict]) -> str:
+    """Call Groq chat completions API with vision support."""
+    api_key = _get_groq_key()
+
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_content},
+    ]
+
+    resp = httpx.post(
+        GROQ_API_URL,
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "model": GROQ_MODEL,
+            "messages": messages,
+            "max_tokens": 2048,
+            "temperature": 0.3,
+        },
+        timeout=60.0,
+    )
+
+    if resp.status_code == 401:
+        raise ValueError("Groq API key is invalid — check GROQ_API_KEY in backend/.env")
+    if resp.status_code != 200:
+        raise ValueError(f"Groq API error ({resp.status_code}): {resp.text[:500]}")
+
+    data = resp.json()
+    return data["choices"][0]["message"]["content"]
+
+
 def reason_about_page(command: str, screenshot_base64: str, dom_snapshot: dict) -> dict:
-    """Reason about the current page using Nova 2 Lite via the Bedrock converse API.
+    """Reason about the current page using Groq vision.
 
     Args:
         command: The user's voice command text.
@@ -236,77 +221,35 @@ def reason_about_page(command: str, screenshot_base64: str, dom_snapshot: dict) 
         - {"type": "answer", "text": "..."} for questions
         - {"type": "steps", "actions": [...]} for task commands
     """
-    client = _get_bedrock_client()
-
-    # Decode the base64 screenshot to raw bytes for the Bedrock image block
-    try:
-        screenshot_bytes = base64.b64decode(screenshot_base64)
-    except Exception as e:
-        raise ValueError(f"Invalid screenshot_base64 — failed to decode: {e}") from e
-
-    # Build the user message with three content blocks:
-    # 1. Screenshot image block
-    # 2. DOM snapshot as JSON text
-    # 3. User command as text
-    user_message_content = [
+    user_content = [
         {
-            "image": {
-                "format": "png",
-                "source": {"bytes": screenshot_bytes},
-            }
+            "type": "image_url",
+            "image_url": {
+                "url": f"data:image/png;base64,{screenshot_base64}",
+            },
         },
         {
-            "text": f"DOM Snapshot:\n{json.dumps(dom_snapshot)}"
+            "type": "text",
+            "text": f"DOM Snapshot:\n{json.dumps(dom_snapshot)}",
         },
         {
-            "text": f"User command: {command}"
+            "type": "text",
+            "text": f"User command: {command}",
         },
     ]
 
     try:
-        response = client.converse(
-            modelId="us.amazon.nova-lite-v1:0",
-            system=[{"text": SYSTEM_PROMPT}],
-            messages=[
-                {
-                    "role": "user",
-                    "content": user_message_content,
-                }
-            ],
-            inferenceConfig={"maxTokens": 2048},
-        )
+        response_text = _call_groq(SYSTEM_PROMPT, user_content)
 
-        response_text = response["output"]["message"]["content"][0]["text"]
-
-        # Extract JSON from response (handles markdown code blocks, extra text, etc.)
         parsed = _extract_json(response_text)
         if parsed is not None:
             if isinstance(parsed, list):
                 return {"type": "steps", "actions": parsed}
             if isinstance(parsed, dict) and "type" in parsed:
                 return parsed
-            # Valid JSON but missing 'type' field — wrap it
             return {"type": "answer", "text": response_text}
-        # No JSON found — treat as plain text answer
         return {"type": "answer", "text": response_text}
 
-    except (NoCredentialsError, PartialCredentialsError) as e:
-        raise ValueError(
-            "AWS credentials are invalid or incomplete — check backend/.env"
-        ) from e
-    except ClientError as e:
-        error_code = e.response["Error"]["Code"]
-        error_msg = e.response["Error"]["Message"]
-        if error_code in ("AccessDeniedException", "UnauthorizedException"):
-            raise ValueError(
-                f"AWS access denied — ensure the IAM user has Bedrock permissions "
-                f"and Nova Lite model access is enabled: {error_msg}"
-            ) from e
-        if error_code == "ValidationException":
-            raise ValueError(
-                f"Bedrock validation error — request format may be invalid: {error_msg}"
-            ) from e
-        raise ValueError(f"AWS Bedrock error ({error_code}): {error_msg}") from e
     except Exception as e:
         raise ValueError(f"Reasoning failed: {e}") from e
 
@@ -317,31 +260,9 @@ def reason_continue(
     screenshot_base64: str,
     dom_snapshot: dict,
 ) -> dict:
-    """Continue reasoning about a multi-step task after actions have been taken.
-
-    Args:
-        original_command: The user's original voice command.
-        action_history: List of dicts with 'description' and 'result' keys for each completed action.
-        screenshot_base64: Base64-encoded PNG screenshot (raw base64, no data URI prefix) AFTER actions.
-        dom_snapshot: Structured DOM data with interactive elements and their CSS selectors.
-
-    Returns:
-        A dict with either:
-        - {"type": "done", "summary": "..."} when the task is complete
-        - {"type": "steps", "actions": [...]} when more actions are needed
-        - {"type": "answer", "text": "..."} when Nova wants to communicate something
-    """
-    client = _get_bedrock_client()
-
-    # Decode the base64 screenshot to raw bytes for the Bedrock image block
-    try:
-        screenshot_bytes = base64.b64decode(screenshot_base64)
-    except Exception as e:
-        raise ValueError(f"Invalid screenshot_base64 — failed to decode: {e}") from e
-
-    # Compress action history for long chains to reduce token usage
+    """Continue reasoning about a multi-step task after actions have been taken."""
+    # Compress action history for long chains
     if len(action_history) > 5:
-        # Summarize older actions, keep last 3 in detail
         older = action_history[:-3]
         recent = action_history[-3:]
         older_summary = f"Previously completed {len(older)} actions: " + ", ".join(
@@ -359,72 +280,38 @@ def reason_continue(
     else:
         formatted_history = "(no actions taken yet)"
 
-    # Build the user message with content blocks:
-    # 1. Screenshot image block (page state AFTER last action)
-    # 2. DOM snapshot as JSON text
-    # 3. Context: original command + action history + next-step question
-    user_message_content = [
+    user_content = [
         {
-            "image": {
-                "format": "png",
-                "source": {"bytes": screenshot_bytes},
-            }
+            "type": "image_url",
+            "image_url": {
+                "url": f"data:image/png;base64,{screenshot_base64}",
+            },
         },
         {
-            "text": f"DOM Snapshot:\n{json.dumps(dom_snapshot)}"
+            "type": "text",
+            "text": f"DOM Snapshot:\n{json.dumps(dom_snapshot)}",
         },
         {
+            "type": "text",
             "text": (
                 f"Original command: {original_command}\n\n"
                 f"Actions completed so far:\n{formatted_history}\n\n"
                 f"What should I do next? If the task is complete, respond with type 'done'."
-            )
+            ),
         },
     ]
 
     try:
-        response = client.converse(
-            modelId="us.amazon.nova-lite-v1:0",
-            system=[{"text": CONTINUE_SYSTEM_PROMPT}],
-            messages=[
-                {
-                    "role": "user",
-                    "content": user_message_content,
-                }
-            ],
-            inferenceConfig={"maxTokens": 2048},
-        )
+        response_text = _call_groq(CONTINUE_SYSTEM_PROMPT, user_content)
 
-        response_text = response["output"]["message"]["content"][0]["text"]
-
-        # Extract JSON from response (handles markdown code blocks, extra text, etc.)
         parsed = _extract_json(response_text)
         if parsed is not None:
             if isinstance(parsed, list):
                 return {"type": "steps", "actions": parsed}
             if isinstance(parsed, dict) and "type" in parsed:
                 return parsed
-            # Valid JSON but missing 'type' field — assume done
             return {"type": "done", "summary": response_text}
-        # No JSON found — assume task is done
         return {"type": "done", "summary": response_text}
 
-    except (NoCredentialsError, PartialCredentialsError) as e:
-        raise ValueError(
-            "AWS credentials are invalid or incomplete — check backend/.env"
-        ) from e
-    except ClientError as e:
-        error_code = e.response["Error"]["Code"]
-        error_msg = e.response["Error"]["Message"]
-        if error_code in ("AccessDeniedException", "UnauthorizedException"):
-            raise ValueError(
-                f"AWS access denied — ensure the IAM user has Bedrock permissions "
-                f"and Nova Lite model access is enabled: {error_msg}"
-            ) from e
-        if error_code == "ValidationException":
-            raise ValueError(
-                f"Bedrock validation error — request format may be invalid: {error_msg}"
-            ) from e
-        raise ValueError(f"AWS Bedrock error ({error_code}): {error_msg}") from e
     except Exception as e:
         raise ValueError(f"Continue reasoning failed: {e}") from e
