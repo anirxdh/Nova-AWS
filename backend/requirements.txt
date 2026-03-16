@@ -5,7 +5,7 @@ boto3==1.35.0
 python-multipart==0.0.9
 sse-starlette==2.1.0
 requests>=2.31.0
-amazon-transcribe>=0.6.0
+Pillow>=10.0.0
 
 # Test dependencies
 pytest>=8.0.0

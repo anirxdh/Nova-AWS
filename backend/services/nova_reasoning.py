@@ -1,10 +1,12 @@
 import base64
+import io
 import json
 import os
 import re
 import time
 
 import httpx
+from PIL import Image
 
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 GROQ_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
@@ -64,6 +66,26 @@ def _extract_json(text: str) -> dict | list | None:
                         break
 
     return None
+
+
+def _compress_screenshot(screenshot_base64: str, max_width: int = 1024) -> str:
+    """Downscale and compress screenshot to JPEG to reduce payload size."""
+    try:
+        img_bytes = base64.b64decode(screenshot_base64)
+        img = Image.open(io.BytesIO(img_bytes))
+        # Downscale if wider than max_width
+        if img.width > max_width:
+            ratio = max_width / img.width
+            new_size = (max_width, int(img.height * ratio))
+            img = img.resize(new_size, Image.LANCZOS)
+        # Convert to JPEG
+        img = img.convert("RGB")
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=70)
+        return base64.b64encode(buf.getvalue()).decode()
+    except Exception:
+        # If compression fails, return original
+        return screenshot_base64
 
 
 def _get_groq_key() -> str:
@@ -261,11 +283,12 @@ def reason_about_page(command: str, screenshot_base64: str, dom_snapshot: dict) 
         - {"type": "answer", "text": "..."} for questions
         - {"type": "steps", "actions": [...]} for task commands
     """
+    compressed = _compress_screenshot(screenshot_base64)
     user_content = [
         {
             "type": "image_url",
             "image_url": {
-                "url": f"data:image/png;base64,{screenshot_base64}",
+                "url": f"data:image/jpeg;base64,{compressed}",
             },
         },
         {
@@ -320,11 +343,12 @@ def reason_continue(
     else:
         formatted_history = "(no actions taken yet)"
 
+    compressed = _compress_screenshot(screenshot_base64)
     user_content = [
         {
             "type": "image_url",
             "image_url": {
-                "url": f"data:image/png;base64,{screenshot_base64}",
+                "url": f"data:image/jpeg;base64,{compressed}",
             },
         },
         {
