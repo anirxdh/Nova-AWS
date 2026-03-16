@@ -50,7 +50,7 @@ const BUBBLE_STYLES = `
               padding 0.3s cubic-bezier(0.2, 0, 0, 1),
               border-radius 0.3s cubic-bezier(0.2, 0, 0, 1),
               box-shadow 0.3s ease;
-  width: 180px;
+  width: 180px; /* listening pill — overridden by state classes */
   box-sizing: border-box;
   box-shadow:
     0 0 0 0.5px rgba(255, 255, 255, 0.06),
@@ -80,8 +80,11 @@ const BUBBLE_STYLES = `
   pointer-events: auto;
 }
 
-.screensense-bubble.state-error {
-  pointer-events: auto;
+.screensense-bubble.state-transcribing,
+.screensense-bubble.state-planning {
+  width: 320px;
+  padding: 14px 16px;
+  border-radius: 16px;
 }
 
 /* ─── Status states ─── */
@@ -128,8 +131,8 @@ const BUBBLE_STYLES = `
 .screensense-step-log {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  max-height: 280px;
+  gap: 3px;
+  max-height: 300px;
   overflow-y: auto;
   padding-right: 4px;
 }
@@ -143,93 +146,83 @@ const BUBBLE_STYLES = `
   gap: 6px;
   font-size: 12px;
   line-height: 1.4;
-  padding: 4px 0;
+  padding: 3px 0;
 }
 
 .screensense-step-icon {
   flex-shrink: 0;
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 9px;
+  font-size: 8px;
   border-radius: 50%;
-  margin-top: 1px;
+  margin-top: 2px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.4);
 }
 
 .screensense-step-icon.done {
-  background: rgba(48, 209, 88, 0.15);
-  color: rgba(48, 209, 88, 0.9);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.5);
 }
 
 .screensense-step-icon.active {
-  background: rgba(255, 153, 0, 0.15);
-  color: rgba(255, 153, 0, 0.9);
-  animation: step-spin 1s linear infinite;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.6);
+  animation: step-pulse 1.2s ease-in-out infinite;
 }
 
 .screensense-step-icon.failed {
-  background: rgba(255, 69, 58, 0.15);
-  color: rgba(255, 69, 58, 0.9);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.35);
 }
 
 .screensense-step-icon.thinking {
-  background: rgba(10, 132, 255, 0.15);
-  color: rgba(10, 132, 255, 0.9);
-  animation: step-spin 1.5s linear infinite;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.45);
+  animation: step-pulse 1.5s ease-in-out infinite;
 }
 
-@keyframes step-spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+@keyframes step-pulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
 }
 
 .screensense-step-text {
-  color: rgba(255, 255, 255, 0.7);
+  color: rgba(255, 255, 255, 0.55);
   word-break: break-word;
 }
 
 .screensense-step-text.result {
-  color: rgba(255, 255, 255, 0.9);
-  font-weight: 500;
+  color: rgba(255, 255, 255, 0.75);
 }
 
 .screensense-step-text.failed {
-  color: rgba(255, 69, 58, 0.8);
-}
-
-.screensense-step-text.thinking {
-  color: rgba(10, 132, 255, 0.7);
+  color: rgba(255, 255, 255, 0.45);
   font-style: italic;
 }
 
-/* Expanded bubble for executing/understanding with chat log */
+.screensense-step-text.thinking {
+  color: rgba(255, 255, 255, 0.4);
+  font-style: italic;
+}
+
+/* Fixed width for all non-listening states */
 .screensense-bubble.state-executing,
-.screensense-bubble.state-understanding {
+.screensense-bubble.state-understanding,
+.screensense-bubble.state-error,
+.screensense-bubble.state-done {
   width: 320px;
-  max-height: 400px;
+  max-height: 420px;
   padding: 14px 16px;
   border-radius: 16px;
   overflow-y: auto;
   pointer-events: auto;
 }
 
-/* Pulsing border during active execution */
-.screensense-bubble.state-executing {
-  border-color: rgba(48, 209, 88, 0.3);
-  animation: exec-pulse 2s ease-in-out infinite;
-}
-
-.screensense-bubble.state-understanding {
-  border-color: rgba(10, 132, 255, 0.3);
-  animation: exec-pulse 2s ease-in-out infinite;
-}
-
-@keyframes exec-pulse {
-  0%, 100% { border-color: rgba(255, 255, 255, 0.15); }
-  50% { border-color: rgba(48, 209, 88, 0.4); }
-}
+/* No pulsing borders — keep neutral */
 
 .screensense-reasoning {
   font-size: 11.5px;
@@ -270,7 +263,7 @@ const BUBBLE_STYLES = `
 }
 
 .screensense-done-summary-check {
-  color: rgba(48, 209, 88, 0.8);
+  color: rgba(255, 255, 255, 0.4);
   flex-shrink: 0;
   font-size: 10px;
 }
@@ -618,7 +611,8 @@ const BAR_COUNT = 10;
 const MIN_HEIGHT = 2;
 const MAX_HEIGHT = 18;
 const CURSOR_OFFSET_Y = 20;
-const BUBBLE_WIDTH_STATUS = 200;
+const BUBBLE_WIDTH_PILL = 180;   // listening state only
+const BUBBLE_WIDTH_STATUS = 320; // all other states
 const BUBBLE_WIDTH_ANSWER = 444;
 const BUBBLE_MAX_HEIGHT_ANSWER = 500;
 
@@ -730,7 +724,7 @@ export class CursorBubble {
     // Bubble element
     this.bubbleEl = document.createElement('div');
     this.bubbleEl.className = 'screensense-bubble';
-    this.positionBubble(cursorX, cursorY, BUBBLE_WIDTH_STATUS);
+    this.positionBubble(cursorX, cursorY, BUBBLE_WIDTH_PILL);
 
     this.shadowRoot.appendChild(this.bubbleEl);
     document.body.appendChild(this.container);
