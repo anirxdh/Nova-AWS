@@ -161,6 +161,17 @@ INFO:     Uvicorn running on http://0.0.0.0:8000
 3. **Release** the key — ScreenSense processes your voice and executes actions
 4. Watch the floating bubble as it listens, transcribes, reasons, and acts
 
+### 9. Customize via Settings
+
+Right-click the extension icon → **Options** (or navigate to the Settings page from the popup) to personalize your experience:
+
+- **Shortcut Key** — Change the hold-to-talk key (default is backtick `` ` ``)
+- **Hold Delay** — Adjust how long you need to hold the key before recording starts (100ms–500ms)
+- **Display Mode** — Choose how AI responses are delivered: *Text + Audio*, *Audio Only*, or *Text Only*
+- **Explanation Level** — Control how detailed the AI's responses are: *Kid*, *Student*, *College*, *PhD*, or *Executive*
+
+All changes are saved per-profile and persist across sessions.
+
 ---
 
 ## Project Structure
