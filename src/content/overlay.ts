@@ -89,7 +89,7 @@ const OVERLAY_STYLES = `
 
 .screensense-history-q {
   font-size: 12px;
-  color: rgba(165, 180, 252, 0.6);
+  color: rgba(254, 189, 105, 0.6);
   font-style: italic;
   margin-bottom: 4px;
 }
@@ -203,15 +203,15 @@ const OVERLAY_STYLES = `
 }
 
 .screensense-followup-input:focus {
-  border-color: rgba(129, 140, 248, 0.5);
+  border-color: rgba(255, 153, 0, 0.5);
 }
 
 .screensense-followup-send {
-  background: rgba(129, 140, 248, 0.2);
-  border: 1px solid rgba(129, 140, 248, 0.3);
+  background: rgba(255, 153, 0, 0.2);
+  border: 1px solid rgba(255, 153, 0, 0.3);
   border-radius: 8px;
   padding: 6px 10px;
-  color: rgba(165, 180, 252, 0.9);
+  color: rgba(254, 189, 105, 0.9);
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
@@ -220,8 +220,8 @@ const OVERLAY_STYLES = `
 }
 
 .screensense-followup-send:hover {
-  background: rgba(129, 140, 248, 0.3);
-  color: #c4b5fd;
+  background: rgba(255, 153, 0, 0.3);
+  color: #FEBD69;
 }
 
 /* ─── Context Bar ─── */
@@ -248,7 +248,7 @@ const OVERLAY_STYLES = `
 
 .screensense-context-fill {
   height: 100%;
-  background: linear-gradient(90deg, rgba(129, 140, 248, 0.6), rgba(196, 181, 253, 0.6));
+  background: linear-gradient(90deg, rgba(255, 153, 0, 0.6), rgba(254, 189, 105, 0.6));
   border-radius: 2px;
   transition: width 0.3s ease;
 }
@@ -290,14 +290,14 @@ const OVERLAY_STYLES = `
 }
 
 .screensense-tts-btn.active {
-  color: rgba(129, 140, 248, 0.9);
-  border-color: rgba(129, 140, 248, 0.3);
-  background: rgba(129, 140, 248, 0.08);
+  color: rgba(255, 153, 0, 0.9);
+  border-color: rgba(255, 153, 0, 0.3);
+  background: rgba(255, 153, 0, 0.08);
 }
 
 .screensense-tts-btn:hover {
-  color: rgba(165, 180, 252, 0.9);
-  border-color: rgba(129, 140, 248, 0.4);
+  color: rgba(254, 189, 105, 0.9);
+  border-color: rgba(255, 153, 0, 0.4);
 }
 
 .screensense-overlay::-webkit-scrollbar {
@@ -340,7 +340,7 @@ const OVERLAY_STYLES = `
 .screensense-speaking-wave .wave-bar {
   width: 4px;
   border-radius: 2px;
-  background: linear-gradient(180deg, rgba(165, 180, 252, 0.9), rgba(129, 140, 248, 0.6));
+  background: linear-gradient(180deg, rgba(254, 189, 105, 0.9), rgba(255, 153, 0, 0.6));
   animation: screensense-wave-bar 1.2s ease-in-out infinite;
 }
 
@@ -366,7 +366,7 @@ const OVERLAY_STYLES = `
 .screensense-speaking-label {
   text-align: center;
   font-size: 11px;
-  color: rgba(165, 180, 252, 0.5);
+  color: rgba(254, 189, 105, 0.5);
   margin-top: 4px;
   letter-spacing: 0.05em;
 }

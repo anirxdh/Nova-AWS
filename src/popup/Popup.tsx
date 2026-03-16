@@ -13,82 +13,196 @@ const Popup: React.FC = () => {
     isSetupComplete().then(setSetupDone);
   }, []);
 
-  const openSettings = () => {
-    chrome.tabs.create({ url: chrome.runtime.getURL('settings.html') });
-  };
-
-  const openWelcome = () => {
-    chrome.runtime.sendMessage({ action: 'open-welcome' });
-    window.close();
-  };
+  const openSettings = () => { chrome.tabs.create({ url: chrome.runtime.getURL('settings.html') }); };
+  const openWelcome = () => { chrome.runtime.sendMessage({ action: 'open-welcome' }); window.close(); };
 
   const shortcutDisplay = settings?.shortcutKey === '`' ? 'Backtick (`)' : settings?.shortcutKey ?? '...';
 
   if (settings === null || micGranted === null || setupDone === null) {
-    return (
-      <div className="w-72 p-4 bg-[#232F3E] text-gray-300">
-        <p>Loading...</p>
-      </div>
-    );
+    return <div style={styles.root}><p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 14 }}>Loading...</p></div>;
   }
 
   return (
-    <div className="w-72 p-4 bg-[#232F3E]">
-      <div className="flex items-center gap-2 mb-1">
-        <img src={chrome.runtime.getURL('icons/icon-48.png')} alt="" className="w-6 h-6 rounded" />
-        <h1 className="text-base font-bold text-white">ScreenSense Voice</h1>
+    <div style={styles.root}>
+      {/* Subtle mesh blobs */}
+      <div style={styles.meshBg}>
+        <div style={{ ...styles.meshBlob, width: 200, height: 200, background: 'radial-gradient(circle, rgba(26,58,92,0.6) 0%, transparent 70%)', top: -60, left: -40 }} />
+        <div style={{ ...styles.meshBlob, width: 180, height: 180, background: 'radial-gradient(circle, rgba(45,27,78,0.4) 0%, transparent 70%)', bottom: -40, right: -30 }} />
+        <div style={{ ...styles.meshBlob, width: 120, height: 120, background: 'radial-gradient(circle, rgba(255,153,0,0.1) 0%, transparent 70%)', top: '40%', right: '10%' }} />
       </div>
-      <p className="text-[10px] font-medium tracking-wider uppercase mb-3 ml-8" style={{ color: 'rgba(0, 168, 225, 0.7)' }}>
-        Powered by Nova
-      </p>
 
-      {!setupDone && (
-        <div className="bg-yellow-900/50 border border-yellow-500/50 rounded-lg p-3 mb-3">
-          <p className="text-yellow-300 text-sm mb-2">Setup not complete</p>
+      <div style={styles.glass}>
+        <div style={styles.header}>
+          <img src={chrome.runtime.getURL('icons/icon-48.png')} alt="" style={{ width: 28, height: 28, borderRadius: 8 }} />
+          <h1 style={styles.title}>ScreenSense</h1>
+        </div>
+
+        {!setupDone && (
+          <div style={styles.alertBox}>
+            <p style={styles.alertText}>Setup not complete</p>
+            <button onClick={openWelcome} style={styles.alertLink}>Complete setup &rarr;</button>
+          </div>
+        )}
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={styles.row}>
+            <span style={styles.label}>Shortcut</span>
+            <span style={styles.keyBadge}>{shortcutDisplay}</span>
+          </div>
+
+          <div style={styles.row}>
+            <span style={styles.label}>Microphone</span>
+            {micGranted ? (
+              <span style={styles.granted}>{'\u2713'} Granted</span>
+            ) : (
+              <button onClick={openWelcome} style={styles.denied}>{'\u2717'} Not granted</button>
+            )}
+          </div>
+
+          <div style={styles.divider} />
+
           <button
-            onClick={openWelcome}
-            className="text-sm text-[#FF9900] hover:text-[#FFB84D] underline"
+            onClick={openSettings}
+            style={styles.settingsBtn}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(255,153,0,0.1)';
+              e.currentTarget.style.color = '#FF9900';
+              e.currentTarget.style.borderColor = 'rgba(255,153,0,0.25)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
+              e.currentTarget.style.color = 'rgba(255,255,255,0.5)';
+              e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)';
+            }}
           >
-            Complete setup
+            Settings
           </button>
         </div>
-      )}
-
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-gray-400">Shortcut</span>
-          <span className="font-mono text-sm bg-gray-700 px-2 py-0.5 rounded text-[#FFB84D]">
-            {shortcutDisplay}
-          </span>
-        </div>
-
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-gray-400">Microphone</span>
-          {micGranted ? (
-            <span className="text-sm text-green-400 flex items-center gap-1">
-              {'\u2713'} Granted
-            </span>
-          ) : (
-            <button
-              onClick={openWelcome}
-              className="text-sm text-red-400 hover:text-red-300 flex items-center gap-1"
-            >
-              {'\u2717'} Not granted
-            </button>
-          )}
-        </div>
-
-        <hr className="border-gray-700" />
-
-        <button
-          onClick={openSettings}
-          className="w-full text-sm text-gray-300 hover:text-white py-1.5 rounded hover:bg-[#1A2332] transition-colors"
-        >
-          Settings
-        </button>
       </div>
     </div>
   );
+};
+
+const styles: Record<string, React.CSSProperties> = {
+  root: {
+    width: 288,
+    padding: 14,
+    background: '#0d1117',
+    fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  meshBg: {
+    position: 'absolute',
+    inset: 0,
+    overflow: 'hidden',
+    pointerEvents: 'none' as const,
+  },
+  meshBlob: {
+    position: 'absolute' as const,
+    borderRadius: '50%',
+    filter: 'blur(60px)',
+  },
+  glass: {
+    position: 'relative' as const,
+    zIndex: 1,
+    background: 'rgba(255,255,255,0.05)',
+    backdropFilter: 'blur(40px) saturate(1.5)',
+    WebkitBackdropFilter: 'blur(40px) saturate(1.5)',
+    border: '1px solid rgba(255,255,255,0.1)',
+    borderRadius: 18,
+    padding: '16px 14px',
+    boxShadow: '0 0 0 0.5px rgba(255,255,255,0.05), 0 12px 40px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.08)',
+  },
+  header: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 14,
+  },
+  title: {
+    fontSize: 17,
+    fontWeight: 800,
+    margin: 0,
+    color: '#FF9900',
+    letterSpacing: '-0.03em',
+  },
+  alertBox: {
+    background: 'rgba(255,153,0,0.08)',
+    border: '1px solid rgba(255,153,0,0.18)',
+    borderRadius: 12,
+    padding: '10px 14px',
+    marginBottom: 14,
+  },
+  alertText: {
+    color: '#FEBD69',
+    fontSize: 13,
+    margin: '0 0 6px',
+    fontWeight: 600,
+  },
+  alertLink: {
+    background: 'none',
+    border: 'none',
+    color: '#FF9900',
+    fontSize: 13,
+    cursor: 'pointer',
+    padding: 0,
+    fontWeight: 700,
+  },
+  row: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  label: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.4)',
+  },
+  keyBadge: {
+    fontFamily: "'SF Mono', 'Fira Code', monospace",
+    fontSize: 13,
+    fontWeight: 600,
+    color: '#FF9900',
+    background: 'rgba(255,153,0,0.12)',
+    border: '1px solid rgba(255,153,0,0.25)',
+    borderRadius: 6,
+    padding: '2px 10px',
+  },
+  granted: {
+    fontSize: 13,
+    color: '#FF9900',
+    fontWeight: 600,
+    display: 'flex',
+    alignItems: 'center',
+    gap: 4,
+  },
+  denied: {
+    background: 'none',
+    border: 'none',
+    fontSize: 13,
+    color: '#ff6b6b',
+    cursor: 'pointer',
+    padding: 0,
+    display: 'flex',
+    alignItems: 'center',
+    gap: 4,
+  },
+  divider: {
+    height: 1,
+    background: 'rgba(255,255,255,0.06)',
+  },
+  settingsBtn: {
+    width: '100%',
+    fontSize: 13,
+    fontWeight: 600,
+    color: 'rgba(255,255,255,0.5)',
+    background: 'rgba(255,255,255,0.04)',
+    border: '1px solid rgba(255,255,255,0.08)',
+    borderRadius: 12,
+    padding: '10px 0',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+  },
 };
 
 export default Popup;

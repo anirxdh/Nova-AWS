@@ -19,8 +19,8 @@
       --border-subtle: rgba(255, 255, 255, 0.08);
       --border-accent: rgba(255, 153, 0, 0.35);
       --text-primary: #F1F5F9;
-      --text-secondary: rgba(255, 200, 130, 0.65);
-      --text-muted: rgba(200, 170, 130, 0.4);
+      --text-secondary: rgba(200, 210, 220, 0.6);
+      --text-muted: rgba(180, 190, 200, 0.4);
       --accent: #FF9900;
       --accent-light: #FFB84D;
       --accent-glow: rgba(255, 153, 0, 0.15);
@@ -1094,7 +1094,7 @@
             <div class="demo-dot"></div>
           </div>
           <div class="demo-video-wrap">
-            <video autoplay loop muted playsinline>
+            <video autoplay loop muted playsinline preload="auto">
               <source src="ffn-demo.mp4" type="video/mp4" />
             </video>
           </div>
@@ -1155,16 +1155,10 @@
             <div class="demo-dot"></div>
           </div>
           <div class="video-wrap">
-            <video id="walkthrough-video" muted playsinline preload="metadata" poster="">
+            <video id="walkthrough-video" autoplay loop muted playsinline preload="auto">
               <source src="walkthrough.mp4" type="video/mp4" />
             </video>
-            <button class="video-play-btn" id="video-play-btn" aria-label="Play video">
-              <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-                <circle cx="24" cy="24" r="24" fill="rgba(255, 153, 0, 0.2)" />
-                <circle cx="24" cy="24" r="23" stroke="rgba(255, 184, 77, 0.4)" stroke-width="1" fill="none" />
-                <path d="M19 15.5L33 24L19 32.5V15.5Z" fill="rgba(255, 184, 77, 0.95)" />
-              </svg>
-            </button>
+            <!-- autoplay loop, no play button needed -->
           </div>
         </div>
       </div>
@@ -1352,26 +1346,11 @@
     // Smooth text transition
     document.getElementById('level-text').style.transition = 'opacity 0.2s ease';
 
-    // ─── Walkthrough video play/pause ───
+    // ─── Walkthrough video autoplay loop ───
     const vid = document.getElementById('walkthrough-video');
-    const playBtn = document.getElementById('video-play-btn');
-
-    function toggleVideo() {
-      if (vid.paused) {
-        vid.muted = false;
-        vid.play();
-        playBtn.classList.add('hidden');
-      } else {
-        vid.pause();
-        playBtn.classList.remove('hidden');
-      }
+    if (vid) {
+      vid.play().catch(() => {});
     }
-
-    playBtn.addEventListener('click', toggleVideo);
-    vid.addEventListener('click', toggleVideo);
-    vid.addEventListener('ended', () => {
-      playBtn.classList.remove('hidden');
-    });
 
     // ─── Particle Network Background ───
     (function () {
