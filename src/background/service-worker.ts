@@ -509,15 +509,17 @@ async function runAgentLoop(
     }
 
     if (continueResult.type === 'answer') {
-      // Nova wants to communicate something — show the answer and exit
+      // Model returned text instead of actions — show reasoning and retry
       const answerText = continueResult.text || '';
-      sendToTab(tabId, { action: 'bubble-state', state: 'answering' });
-      sendToTab(tabId, { action: 'bubble-answer-chunk', text: answerText });
-      sendToTab(tabId, { action: 'bubble-answer-done', fullText: answerText });
-      const firstSentence = answerText.split(/\.\s/)[0];
-      const summary = firstSentence.endsWith('.') ? firstSentence : firstSentence + '.';
-      sendToTab(tabId, { action: 'tts-summary', summary });
-      return;
+      sendToTab(tabId, { action: 'bubble-reasoning', text: answerText });
+      // Add as reasoning to history and re-prompt for actual actions
+      actionHistory.push({
+        description: `Reasoning: ${answerText.substring(0, 80)}`,
+        result: 'Re-prompting for actions',
+      });
+      // Continue the loop — the next iteration will capture fresh state and re-ask
+      currentActions = [];
+      continue;
     }
 
     if (continueResult.type === 'steps') {
