@@ -36,7 +36,7 @@ function sendMessage(msg: Record<string, unknown>): void {
 // Wire up bubble callbacks for follow-up and clear
 bubble.setCallbacks(
   (text: string) => sendMessage({ action: 'follow-up', text }),
-  () => sendMessage({ action: 'clear-conversation' })
+  () => { bubble.clearChatHistory(); sendMessage({ action: 'clear-conversation' }); }
 );
 
 // Cancel agent loop when Escape is pressed while bubble is visible

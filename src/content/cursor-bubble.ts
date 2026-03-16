@@ -653,6 +653,9 @@ export class CursorBubble {
   private currentTask = '';
   private completedSteps: string[] = [];
 
+  // Persistent chat history — survives bubble dismiss/re-show
+  private chatHistory: Array<{ type: 'question' | 'step' | 'result' | 'failed' | 'thinking' | 'done'; text: string }> = [];
+
   // Accumulated content (answer streaming)
   private accumulatedText = '';
   private currentTranscript = '';
@@ -1072,7 +1075,15 @@ export class CursorBubble {
   setTask(task: string): void {
     this.currentTask = task;
     this.completedSteps = [];
+    this.chatHistory.push({ type: 'question', text: task });
     this.ensureTaskBanner();
+  }
+
+  /** Clear the persistent chat history */
+  clearChatHistory(): void {
+    this.chatHistory = [];
+    this.completedSteps = [];
+    this.currentTask = '';
   }
 
   /** Show a done summary with all completed steps */
@@ -1200,16 +1211,51 @@ export class CursorBubble {
     // Show task banner (user's question)
     this.ensureTaskBanner();
 
-    // Create or reuse the step log container
+    // Create the step log container
     if (!this.stepLogEl || !this.bubbleEl.contains(this.stepLogEl)) {
       this.stepLogEl = document.createElement('div');
       this.stepLogEl.className = 'screensense-step-log';
       this.bubbleEl.appendChild(this.stepLogEl);
+
+      // Replay persistent history into the new DOM
+      this.replayHistory();
     }
+  }
+
+  /** Replay chat history into the step log DOM */
+  private replayHistory(): void {
+    if (!this.stepLogEl) return;
+    for (const entry of this.chatHistory) {
+      if (entry.type === 'question') {
+        // Add a separator for each question in the history
+        const sep = document.createElement('div');
+        sep.style.cssText = 'font-size:11px;color:rgba(255,255,255,0.4);font-style:italic;padding:6px 0 2px;border-top:0.5px solid rgba(255,255,255,0.06);margin-top:4px;';
+        sep.textContent = `"${entry.text}"`;
+        this.stepLogEl.appendChild(sep);
+      } else {
+        const typeMap: Record<string, 'active' | 'done' | 'failed' | 'thinking'> = {
+          step: 'done', // historical steps are all completed
+          result: 'done',
+          failed: 'failed',
+          thinking: 'thinking',
+          done: 'done',
+        };
+        this.renderStepEntryToLog(entry.text, typeMap[entry.type] || 'done');
+      }
+    }
+    this.stepLogEl.scrollTop = this.stepLogEl.scrollHeight;
   }
 
   /** Add an entry to the chat-style step log */
   private addStepEntry(text: string, type: 'active' | 'done' | 'failed' | 'thinking'): void {
+    // Record in persistent history
+    const histType = type === 'active' ? 'step' : type === 'done' ? 'result' : type;
+    this.chatHistory.push({ type: histType as any, text });
+
+    this.renderStepEntryToLog(text, type);
+  }
+
+  private renderStepEntryToLog(text: string, type: 'active' | 'done' | 'failed' | 'thinking'): void {
     if (!this.stepLogEl) return;
 
     const entry = document.createElement('div');
@@ -1220,7 +1266,7 @@ export class CursorBubble {
     if (type === 'done') icon.textContent = '\u2713';
     else if (type === 'failed') icon.textContent = '\u2717';
     else if (type === 'active') icon.textContent = '\u25CB';
-    else icon.textContent = '\u25CB'; // thinking
+    else icon.textContent = '\u25CB';
 
     const textEl = document.createElement('span');
     textEl.className = `screensense-step-text ${type === 'done' ? 'result' : type === 'failed' ? 'failed' : type === 'thinking' ? 'thinking' : ''}`;
